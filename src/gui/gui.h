@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2024 tildearrow and contributors
+ * Copyright (C) 2021-2025 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -71,7 +71,7 @@
 #define FM_PREVIEW_SIZE 512
 
 #define CHECK_HIDDEN_SYSTEM(x) \
-  (x==DIV_SYSTEM_YMU759 || x==DIV_SYSTEM_UPD1771C || x==DIV_SYSTEM_DUMMY || x==DIV_SYSTEM_SEGAPCM_COMPAT || x==DIV_SYSTEM_PONG)
+  (x==DIV_SYSTEM_YMU759 || x==DIV_SYSTEM_DUMMY || x==DIV_SYSTEM_SEGAPCM_COMPAT || x==DIV_SYSTEM_PONG)
 
 enum FurnaceGUIRenderBackend {
   GUI_BACKEND_SDL=0,
