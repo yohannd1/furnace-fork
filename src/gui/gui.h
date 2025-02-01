@@ -28,6 +28,9 @@
 #include <SDL.h>
 #include <fftw3.h>
 #include <stdint.h>
+#ifndef PRIu64
+#include <inttypes.h>
+#endif
 #include <initializer_list>
 #include <future>
 #include <memory>
@@ -2985,7 +2988,7 @@ class FurnaceGUI {
   void doRedo();
   void doFind();
   void doReplace();
-  void doDrag();
+  void doDrag(bool copy=false);
   void editOptions(bool topMenu);
   DivSystem systemPicker(bool fullWidth);
   void noteInput(int num, int key, int vol=-1);
