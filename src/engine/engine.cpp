@@ -40,6 +40,7 @@
 #include <math.h>
 #include <float.h>
 #include <fmt/printf.h>
+#include <chrono>
 
 void process(void* u, float** in, float** out, int inChans, int outChans, unsigned int size) {
   ((DivEngine*)u)->nextBuf(in,out,inChans,outChans,size);
@@ -2063,9 +2064,7 @@ void DivEngine::stop() {
   for (int i=0; i<chans; i++) {
     DivDispatchOscBuffer* buf=disCont[dispatchOfChan[i]].dispatch->getOscBuffer(dispatchChanOfChan[i]);
     if (buf!=NULL) {
-      memset(buf->data,0,65536*sizeof(short));
-      buf->needle=0;
-      buf->readNeedle=0;
+      buf->reset();
     }
   }
   BUSY_END;
@@ -2338,7 +2337,7 @@ void DivEngine::stopWavePreviewNoLock() {
 }
 
 bool DivEngine::isPreviewingSample() {
-  return (sPreview.sample>=0 && sPreview.sample<(int)song.sample.size());
+  return (sPreview.sample>=0 && sPreview.sample<(int)song.sample.size() && sPreview.pos!=sPreview.pEnd);
 }
 
 int DivEngine::getSamplePreviewSample() {
@@ -2351,6 +2350,10 @@ int DivEngine::getSamplePreviewPos() {
 
 double DivEngine::getSamplePreviewRate() {
   return sPreview.rate;
+}
+
+double DivEngine::getCenterRate() {
+  return song.oldCenterRate?8363.0:8372.0;
 }
 
 String DivEngine::getConfigPath() {
@@ -2897,6 +2900,7 @@ int DivEngine::addSample() {
   DivSample* sample=new DivSample;
   int sampleCount=(int)song.sample.size();
   sample->name=fmt::sprintf(_("Sample %d"),sampleCount);
+  sample->centerRate=getCenterRate();
   song.sample.push_back(sample);
   song.sampleLen=sampleCount+1;
   sPreview.sample=-1;

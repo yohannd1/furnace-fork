@@ -1602,6 +1602,15 @@ struct PendingDrawOsc {
     lineSize(0.0f) {}
 };
 
+struct MappedInput {
+  int scan;
+  int val;
+  MappedInput():
+    scan(SDL_SCANCODE_UNKNOWN), val(0) {}
+  MappedInput(int s, int v):
+    scan(s), val(v) {}
+};
+
 struct FurnaceCV;
 
 class FurnaceGUI {
@@ -2358,6 +2367,7 @@ class FurnaceGUI {
   bool selecting, selectingFull, dragging, curNibble, orderNibble, followOrders, followPattern, changeAllOrders, mobileUI;
   bool collapseWindow, demandScrollX, fancyPattern, firstFrame, tempoView, waveHex, waveSigned, waveGenVisible, lockLayout, editOptsVisible, latchNibble, nonLatchNibble;
   bool keepLoopAlive, keepGrooveAlive, orderScrollLocked, orderScrollTolerance, dragMobileMenu, dragMobileEditButton, wantGrooveListFocus;
+  bool mobilePatSel;
   unsigned char lastAssetType;
   FurnaceGUIWindows curWindow, nextWindow, curWindowLast;
   std::atomic<FurnaceGUIWindows> curWindowThreadSafe;
@@ -2369,6 +2379,9 @@ class FurnaceGUI {
   float buttonLongThreshold;
   String nextDesc;
   String nextDescName;
+
+  float lastAudioLoads[120];
+  int lastAudioLoadsPos;
 
   OperationMask opMaskDelete, opMaskPullDelete, opMaskInsert, opMaskPaste, opMaskTransposeNote, opMaskTransposeValue;
   OperationMask opMaskInterpolate, opMaskFade, opMaskInvertVal, opMaskScale;
@@ -2451,6 +2464,7 @@ class FurnaceGUI {
 
   // SDL_Scancode,int
   std::map<int,int> noteKeys;
+  std::vector<MappedInput> noteKeysRaw;
   // SDL_Keycode,int
   std::map<int,int> valueKeys;
 
@@ -2508,7 +2522,7 @@ class FurnaceGUI {
   int bindSetTarget, bindSetTargetIdx, bindSetPrevValue;
   bool bindSetActive, bindSetPending;
 
-  float nextScroll, nextAddScroll, orderScroll, orderScrollSlideOrigin;
+  float nextScroll, nextAddScroll, nextAddScrollX, orderScroll, orderScrollSlideOrigin;
 
   ImVec2 orderScrollRealOrigin;
   ImVec2 dragMobileMenuOrigin;
@@ -2535,14 +2549,14 @@ class FurnaceGUI {
   ImVec2 patWindowPos, patWindowSize;
 
   // pattern view specific
-  ImVec2 fourChars, threeChars, twoChars;
+  ImVec2 fourChars, threeChars, twoChars, oneChar;
   ImVec2 noteCellSize, insCellSize, volCellSize, effectCellSize, effectValCellSize;
   SelectionPoint sel1, sel2;
   int dummyRows;
-  int transposeAmount, randomizeMin, randomizeMax, fadeMin, fadeMax, collapseAmount;
+  int transposeAmount, randomizeMin, randomizeMax, fadeMin, fadeMax, collapseAmount, randomizeEffectVal;
   float playheadY;
   float scaleMax;
-  bool fadeMode, randomMode, haveHitBounds;
+  bool fadeMode, randomMode, haveHitBounds, randomizeEffect;
   signed char pendingStepUpdate;
 
   int oldOrdersLen;
@@ -2623,7 +2637,7 @@ class FurnaceGUI {
     double inBufPosFrac;
     double waveLen;
     int waveLenBottom, waveLenTop, relatedCh;
-    float pitch, windowSize, phaseOff;
+    float pitch, windowSize, phaseOff, debugPhase, dcOff;
     unsigned short needle;
     bool ready, loudEnough, waveCorr;
     fftw_plan plan;
@@ -2644,6 +2658,8 @@ class FurnaceGUI {
       pitch(0.0f),
       windowSize(1.0f),
       phaseOff(0.0f),
+      debugPhase(0.0f),
+      dcOff(0.0f),
       needle(0),
       ready(false),
       loudEnough(false),
@@ -2977,7 +2993,7 @@ class FurnaceGUI {
   void doFade(int p0, int p1, bool mode);
   void doInvertValues();
   void doScale(float top);
-  void doRandomize(int bottom, int top, bool mode);
+  void doRandomize(int bottom, int top, bool mode, bool eff, int effVal);
   void doFlip();
   void doCollapse(int divider, const SelectionPoint& sStart, const SelectionPoint& sEnd);
   void doExpand(int multiplier, const SelectionPoint& sStart, const SelectionPoint& sEnd);
@@ -3038,6 +3054,8 @@ class FurnaceGUI {
   bool parseSysEx(unsigned char* data, size_t len);
 
   void applyUISettings(bool updateFonts=true);
+  void decompileNoteKeys();
+  void compileNoteKeys();
   void initSystemPresets();
 
   void initRandomDemoSong();
@@ -3073,6 +3091,7 @@ class FurnaceGUI {
     void enableSafeMode();
     void updateScroll(int amount);
     void addScroll(int amount);
+    void addScrollX(int amount);
     void setFileName(String name);
     void runBackupThread();
     void pushPartBlend();

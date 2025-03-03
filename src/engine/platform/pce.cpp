@@ -55,6 +55,10 @@ const char** DivPlatformPCE::getRegisterSheet() {
 }
 
 void DivPlatformPCE::acquire(short** buf, size_t len) {
+  for (int i=0; i<6; i++) {
+    oscBuf[i]->begin(len);
+  }
+
   for (size_t h=0; h<len; h++) {
     // PCM part
     for (int i=0; i<6; i++) {
@@ -100,7 +104,7 @@ void DivPlatformPCE::acquire(short** buf, size_t len) {
     pce->ResetTS(0);
 
     for (int i=0; i<6; i++) {
-      oscBuf[i]->data[oscBuf[i]->needle++]=CLAMP(pce->channel[i].blip_prev_samp[0]+pce->channel[i].blip_prev_samp[1],-32768,32767);
+      oscBuf[i]->putSample(h,CLAMP(pce->channel[i].blip_prev_samp[0]+pce->channel[i].blip_prev_samp[1],-32768,32767));
     }
 
     tempL[0]=(tempL[0]>>1)+(tempL[0]>>2);
@@ -114,6 +118,10 @@ void DivPlatformPCE::acquire(short** buf, size_t len) {
     //printf("tempL: %d tempR: %d\n",tempL,tempR);
     buf[0][h]=tempL[0];
     buf[1][h]=tempR[0];
+  }
+
+  for (int i=0; i<6; i++) {
+    oscBuf[i]->end(len);
   }
 }
 
@@ -153,8 +161,8 @@ void DivPlatformPCE::tick(bool sysTick) {
     chan[i].std.next();
     if (chan[i].std.vol.had) {
       chan[i].outVol=VOL_SCALE_LOG_BROKEN(chan[i].vol&31,MIN(31,chan[i].std.vol.val),31);
-      if (chan[i].furnaceDac && chan[i].pcm) {
-        // ignore for now
+      if (chan[i].pcm) {
+        chWrite(i,0x04,0xc0|chan[i].outVol);
       } else {
         chWrite(i,0x04,0x80|chan[i].outVol);
       }
@@ -233,7 +241,7 @@ void DivPlatformPCE::tick(bool sysTick) {
           if (s->centerRate<1) {
             off=1.0;
           } else {
-            off=8363.0/(double)s->centerRate;
+            off=parent->getCenterRate()/(double)s->centerRate;
           }
         }
         chan[i].dacRate=((double)chipClock/2)/MAX(1,off*chan[i].freq);
@@ -282,6 +290,7 @@ int DivPlatformPCE::dispatch(DivCommand c) {
         chan[c.chan].pcm=false;
         chan[c.chan].sampleNote=DIV_NOTE_NULL;
         chan[c.chan].sampleNoteDelta=0;
+        if (dumpWrites) addWrite(0xffff0002+(c.chan<<8),0);
       }
       if (chan[c.chan].pcm) {
         if (ins->type==DIV_INS_AMIGA || ins->amiga.useSample) {
@@ -400,8 +409,12 @@ int DivPlatformPCE::dispatch(DivCommand c) {
         chan[c.chan].vol=c.value;
         if (!chan[c.chan].std.vol.has) {
           chan[c.chan].outVol=c.value;
-          if (chan[c.chan].active && !chan[c.chan].pcm) {
-            chWrite(c.chan,0x04,0x80|chan[c.chan].outVol);
+          if (chan[c.chan].active) {
+            if (chan[c.chan].pcm) {
+              chWrite(c.chan,0x04,0xc0|chan[c.chan].outVol);
+            } else {
+              chWrite(c.chan,0x04,0x80|chan[c.chan].outVol);
+            }
           }
         }
       }
@@ -651,7 +664,7 @@ void DivPlatformPCE::setFlags(const DivConfig& flags) {
   antiClickEnabled=!flags.getBool("noAntiClick",false);
   rate=chipClock/(coreQuality>>1);
   for (int i=0; i<6; i++) {
-    oscBuf[i]->rate=rate;
+    oscBuf[i]->setRate(rate);
   }
 
   if (pce!=NULL) {

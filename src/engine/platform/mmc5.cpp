@@ -44,6 +44,10 @@ const char** DivPlatformMMC5::getRegisterSheet() {
 }
 
 void DivPlatformMMC5::acquire(short** buf, size_t len) {
+  for (int i=0; i<3; i++) {
+    oscBuf[i]->begin(len);
+  }
+
   for (size_t i=0; i<len; i++) {
     if (dacSample!=-1) {
       dacPeriod+=dacRate;
@@ -85,10 +89,14 @@ void DivPlatformMMC5::acquire(short** buf, size_t len) {
 
     if (++writeOscBuf>=32) {
       writeOscBuf=0;
-      oscBuf[0]->data[oscBuf[0]->needle++]=isMuted[0]?0:((mmc5->S3.output)<<11);
-      oscBuf[1]->data[oscBuf[1]->needle++]=isMuted[1]?0:((mmc5->S4.output)<<11);
-      oscBuf[2]->data[oscBuf[2]->needle++]=isMuted[2]?0:((mmc5->pcm.output)<<7);
+      oscBuf[0]->putSample(i,isMuted[0]?0:((mmc5->S3.output)<<11));
+      oscBuf[1]->putSample(i,isMuted[1]?0:((mmc5->S4.output)<<11));
+      oscBuf[2]->putSample(i,isMuted[2]?0:((mmc5->pcm.output)<<7));
     }
+  }
+
+  for (int i=0; i<3; i++) {
+    oscBuf[i]->end(len);
   }
 }
 
@@ -161,7 +169,7 @@ void DivPlatformMMC5::tick(bool sysTick) {
       double off=1.0;
       if (dacSample>=0 && dacSample<parent->song.sampleLen) {
         DivSample* s=parent->getSample(dacSample);
-        off=(double)s->centerRate/8363.0;
+        off=(double)s->centerRate/parent->getCenterRate();
       }
       dacRate=MIN(chan[2].freq*off,32000);
       if (dumpWrites) addWrite(0xffff0001,dacRate);
@@ -427,7 +435,7 @@ void DivPlatformMMC5::setFlags(const DivConfig& flags) {
   CHECK_CUSTOM_CLOCK;
   rate=chipClock;
   for (int i=0; i<3; i++) {
-    oscBuf[i]->rate=rate/32;
+    oscBuf[i]->setRate(rate);
   }
 }
 

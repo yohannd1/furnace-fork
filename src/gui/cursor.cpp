@@ -169,6 +169,7 @@ void FurnaceGUI::finishSelection() {
   }
   selecting=false;
   selectingFull=false;
+  mobilePatSel=false;
 
   if (dragging) {
     if (dragSourceX==dragDestinationX && dragSourceY==dragDestinationY && dragSourceXFine==dragDestinationXFine) {
@@ -202,6 +203,18 @@ void FurnaceGUI::finishSelection() {
     selStart.xFine=0;
   }
   if (e->curSubSong->chanCollapse[selEnd.xCoarse] && selEnd.xFine>=(3-e->curSubSong->chanCollapse[selEnd.xCoarse])) {
+    selEnd.xFine=2+e->curPat[selEnd.xCoarse].effectCols*2;
+  }
+  if (selStart.xFine<0) {
+    selStart.xFine=0;
+  }
+  if (selEnd.xFine<0) {
+    selEnd.xFine=0;
+  }
+  if (selStart.xFine>(2+e->curPat[selStart.xCoarse].effectCols*2)) {
+    selStart.xFine=2+e->curPat[selStart.xCoarse].effectCols*2;
+  }
+  if (selEnd.xFine>(2+e->curPat[selEnd.xCoarse].effectCols*2)) {
     selEnd.xFine=2+e->curPat[selEnd.xCoarse].effectCols*2;
   }
 
