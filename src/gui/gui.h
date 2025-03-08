@@ -1800,13 +1800,9 @@ class FurnaceGUI {
     int dsidQuality;
     int gbQuality;
     int ndsQuality;
-    int pceQuality;
     int pnQuality;
     int saaQuality;
-    int sccQuality;
     int smQuality;
-    int swanQuality;
-    int vbQuality;
     int arcadeCoreRender;
     int ym2612CoreRender;
     int snCoreRender;
@@ -1827,13 +1823,9 @@ class FurnaceGUI {
     int dsidQualityRender;
     int gbQualityRender;
     int ndsQualityRender;
-    int pceQualityRender;
     int pnQualityRender;
     int saaQualityRender;
-    int sccQualityRender;
     int smQualityRender;
-    int swanQualityRender;
-    int vbQualityRender;
     int pcSpeakerOutMethod;
     String yrw801Path;
     String tg100Path;
@@ -2065,13 +2057,9 @@ class FurnaceGUI {
       dsidQuality(3),
       gbQuality(3),
       ndsQuality(3),
-      pceQuality(3),
       pnQuality(3),
       saaQuality(3),
-      sccQuality(3),
       smQuality(3),
-      swanQuality(3),
-      vbQuality(3),
       arcadeCoreRender(1),
       ym2612CoreRender(0),
       snCoreRender(0),
@@ -2092,13 +2080,9 @@ class FurnaceGUI {
       dsidQualityRender(3),
       gbQualityRender(3),
       ndsQualityRender(3),
-      pceQualityRender(3),
       pnQualityRender(3),
       saaQualityRender(3),
-      sccQualityRender(3),
       smQualityRender(3),
-      swanQualityRender(3),
-      vbQualityRender(3),
       pcSpeakerOutMethod(0),
       yrw801Path(""),
       tg100Path(""),
@@ -2587,6 +2571,7 @@ class FurnaceGUI {
   ImVec2 sampleDragAreaSize;
   unsigned int sampleDragLen;
   float sampleFilterL, sampleFilterB, sampleFilterH, sampleFilterRes, sampleFilterCutStart, sampleFilterCutEnd;
+  bool sampleFilterSweep, sampleFilterFirstFrame;
   int sampleCrossFadeLoopLength, sampleCrossFadeLoopLaw;
   unsigned char sampleFilterPower;
   short* sampleClipboard;

@@ -98,7 +98,7 @@ set(WITH_LOCALE_DEFAULT ON)
 try_compile(HAVE_SETLOCALE ${CMAKE_BINARY_DIR}/check SOURCES ${CMAKE_SOURCE_DIR}/src/check/check_setlocale.c)
 include(FindIntl)
 
-if (HAVE_SETLOCALE AND Intl_FOUND AND NOT APPLE)
+if (HAVE_SETLOCALE AND Intl_FOUND AND NOT APPLE AND NOT WIN32)
   set(USE_MOMO_DEFAULT OFF)
 else()
   set(USE_MOMO_DEFAULT ON)
@@ -146,7 +146,7 @@ else()
   set(MAKE_BUNDLE OFF)
 endif()
 
-set(DEPENDENCIES_INCLUDE_DIRS extern/IconFontCppHeaders src/icon)
+set(DEPENDENCIES_INCLUDE_DIRS extern/IconFontCppHeaders extern/blip_buf src/icon)
 
 if (ANDROID AND NOT TERMUX)
   set(DEPENDENCIES_DEFINES "IS_MOBILE")
@@ -542,6 +542,8 @@ extern/YM2608-LLE/fmopna_2612.c
 
 extern/pwrnoise/pwrnoise.c
 
+extern/blip_buf/blip_buf.c
+
 src/pch.cpp
 
 src/engine/platform/sound/sn76496.cpp
@@ -552,9 +554,9 @@ src/engine/platform/sound/segapcm.cpp
 src/engine/platform/sound/gb/apu.c
 src/engine/platform/sound/gb/timing.c
 src/engine/platform/sound/pce_psg.cpp
-src/engine/platform/sound/nes/apu.c
-src/engine/platform/sound/nes/fds.c
-src/engine/platform/sound/nes/mmc5.c
+src/engine/platform/sound/nes/apu.cpp
+src/engine/platform/sound/nes/fds.cpp
+src/engine/platform/sound/nes/mmc5.cpp
 src/engine/platform/sound/vera_psg.c
 src/engine/platform/sound/vera_pcm.c
 src/engine/platform/sound/ymf278b/ymf278.cpp
@@ -701,7 +703,6 @@ src/engine/fileOps/pps.cpp
 src/engine/fileOps/pvi.cpp
 src/engine/fileOps/pzi.cpp
 
-src/engine/blip_buf.c
 src/engine/brrUtils.c
 src/engine/safeReader.cpp
 src/engine/safeWriter.cpp
