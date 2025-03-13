@@ -701,13 +701,18 @@ void FurnaceGUI::drawChanOsc() {
                     }
                   }
                 } else {
-                  /*
-                  String dStr=fmt::sprintf("DS: %d P: %d\nMAX: %d\nPHASE %f",displaySize,precision,(short)((fft->needle+displaySize)-fft->relatedBuf->needle),fft->debugPhase);
-                  dl->AddText(inRect.Min,0xffffffff,dStr.c_str());
-                  */
+                  // find the first sample
+                  float y=0;
+                  for (int j=0; j<32768; j++) {
+                    const short y_s=buf->data[(fft->needle-j)&0xffff];
+                    if (y_s!=-1) {
+                      y=(float)y_s/32768.0f;
+                      break;
+                    }
+                  }
+                  // render chan osc
                   if (displaySize<precision) {
-                    float y=0;
-                    for (int j=-2048; j<precision; j++) {
+                    for (int j=0; j<precision; j++) {
                       const short y_s=buf->data[(unsigned short)(fft->needle+(j*displaySize/precision))];
                       if (y_s!=-1) {
                         y=(float)y_s/32768.0f;
@@ -717,16 +722,19 @@ void FurnaceGUI::drawChanOsc() {
                       }
                       if (j<0) continue;
                       float yOut=y-fft->dcOff;
-                      fft->dcOff+=(y-fft->dcOff)*0.001;
+                      if (!settings.audioHiPass) {
+                        fft->dcOff=0;
+                      } else {
+                        fft->dcOff+=(y-fft->dcOff)*0.001;
+                      }
                       if (yOut<-0.5f) yOut=-0.5f;
                       if (yOut>0.5f) yOut=0.5f;
                       yOut*=chanOscAmplify*2.0f;
                       fft->oscTex[j]=yOut;
                     }
                   } else {
-                    float y=0;
-                    int k=-2048;
-                    for (unsigned short j=fft->needle-2048; j!=fft->needle+displaySize; j++, k++) {
+                    int k=0;
+                    for (unsigned short j=fft->needle; j!=fft->needle+displaySize; j++, k++) {
                       const short y_s=buf->data[j];
                       const int kTex=(k*precision)/displaySize;
                       if (kTex>=precision) break;
@@ -738,7 +746,11 @@ void FurnaceGUI::drawChanOsc() {
                       }
                       if (kTex<0) continue;
                       float yOut=y-fft->dcOff;
-                      fft->dcOff+=(y-fft->dcOff)*0.001;
+                      if (!settings.audioHiPass) {
+                        fft->dcOff=0;
+                      } else {
+                        fft->dcOff+=(y-fft->dcOff)*0.001;
+                      }
                       if (yOut<-0.5f) yOut=-0.5f;
                       if (yOut>0.5f) yOut=0.5f;
                       yOut*=chanOscAmplify*2.0f;
