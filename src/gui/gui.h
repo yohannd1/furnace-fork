@@ -1798,6 +1798,7 @@ class FurnaceGUI {
     int esfmCore;
     int opllCore;
     int ayCore;
+    int swanCore;
     int dsidQuality;
     int gbQuality;
     int pnQuality;
@@ -1818,6 +1819,7 @@ class FurnaceGUI {
     int esfmCoreRender;
     int opllCoreRender;
     int ayCoreRender;
+    int swanCoreRender;
     int dsidQualityRender;
     int gbQualityRender;
     int pnQualityRender;
@@ -1870,6 +1872,7 @@ class FurnaceGUI {
     int loadChineseTraditional;
     int loadKorean;
     int loadFallback;
+    int loadFallbackPat;
     int fmLayout;
     int sampleLayout;
     int waveLayout;
@@ -1999,6 +2002,7 @@ class FurnaceGUI {
     int autoFillSave;
     int autoMacroStepSize;
     int backgroundPlay;
+    int chanOscDCOffStrat;
     unsigned int maxUndoSteps;
     float vibrationStrength;
     int vibrationLength;
@@ -2049,6 +2053,7 @@ class FurnaceGUI {
       esfmCore(0),
       opllCore(0),
       ayCore(0),
+      swanCore(0),
       dsidQuality(3),
       gbQuality(3),
       pnQuality(3),
@@ -2069,6 +2074,7 @@ class FurnaceGUI {
       esfmCoreRender(0),
       opllCoreRender(0),
       ayCoreRender(0),
+      swanCoreRender(0),
       dsidQualityRender(3),
       gbQualityRender(3),
       pnQualityRender(3),
@@ -2119,6 +2125,7 @@ class FurnaceGUI {
       loadChineseTraditional(0),
       loadKorean(0),
       loadFallback(1),
+      loadFallbackPat(1),
       fmLayout(4),
       sampleLayout(0),
       waveLayout(0),
@@ -2589,7 +2596,7 @@ class FurnaceGUI {
   bool oscZoomSlider;
 
   // per-channel oscilloscope
-  int chanOscCols, chanOscAutoColsType, chanOscColorX, chanOscColorY;
+  int chanOscCols, chanOscAutoColsType, chanOscColorX, chanOscColorY, chanOscCenterStrat;
   float chanOscWindowSize, chanOscTextX, chanOscTextY, chanOscAmplify, chanOscLineSize;
   bool chanOscWaveCorr, chanOscOptions, updateChanOscGradTex, chanOscUseGrad, chanOscNormalize, chanOscRandomPhase;
   String chanOscTextFormat;

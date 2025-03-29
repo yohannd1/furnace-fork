@@ -43,6 +43,7 @@ for other operating systems, you may [build the source](#developer-info).
     - YM3526 (OPL) used in C64 Sound Expander
     - YM3812 (OPL2)
     - YMF262 (OPL3) with full 4-op support!
+    - YMF278 (OPL4) including sample channels
     - Y8950 (OPL with ADPCM)
   - ESS ESFM (like OPL3 but with more features)
   - square wave chips:
@@ -96,24 +97,26 @@ for other operating systems, you may [build the source](#developer-info).
     - including software tuning engine (TIunA)
   - POKEY used in Atari 8-bit computers
   - **Game Boy**
-    - including SOFTWARE ENVELOPES (zombie mode)
+    - including software envelopes (zombie mode)
   - Virtual Boy
   - Game Boy Advance
     - DMA (direct memory access) two channel mode
     - MinMod software driver by Natt Akuma
   - Nintendo DS
+  - Watara Supervision
   - modern/fantasy:
     - Commander X16 VERA
     - tildearrow Sound Unit
     - PowerNoise
     - Bifurcator
     - SID2
+    - SID3
     - Generic PCM DAC
 - mix and match sound chips!
   - over 200 ready to use presets from computers, game consoles and arcade boards...
   - ...or create your own presets - up to 32 chips or a total of 128 channels!
 - DefleMask compatibility
-  - loads .dmf modules from all versions (beta 1 to 1.1.9)
+  - loads .dmf modules from all versions (beta 1 to 1.2.0)
   - saves .dmf modules - both modern and legacy
     - Furnace doubles as a module downgrader
   - loads/saves .dmp instruments and .dmw wavetables as well
@@ -122,6 +125,7 @@ for other operating systems, you may [build the source](#developer-info).
 - VGM export
 - ZSM export for Commander X16
 - TIunA export for Atari 2600
+- SAP type R export for POKEY (playable by Altirra and [lzss-sap](https://github.com/dmsc/lzss-sap))
 - modular layout that you may adapt to your needs
 - audio file export - entire song, per chip or per channel
 - quality emulation cores (Nuked, MAME, SameBoy, Mednafen PCE, NSFplay, puNES, reSID, Stella, SAASound, vgsound_emu and ymfm)
@@ -138,6 +142,7 @@ for other operating systems, you may [build the source](#developer-info).
   - SSG envelopes and ADPCM-B in Neo Geo
   - pitchable OPLL drums
   - full duty/cutoff range in C64
+  - optional PCM channel in C64
   - full 16-channel SegaPCM
   - ability to change tempo mid-song
   - decimal tempo/tick rate
