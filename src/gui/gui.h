@@ -1613,6 +1613,17 @@ struct MappedInput {
     scan(s), val(v) {}
 };
 
+struct CSDisAsmIns {
+  unsigned int addr;
+  unsigned char data[8];
+  unsigned char len;
+  CSDisAsmIns():
+    addr(0),
+    len(0) {
+    memset(data,0,8);
+  }
+};
+
 struct FurnaceCV;
 
 class FurnaceGUI {
@@ -1628,6 +1639,8 @@ class FurnaceGUI {
 
   FurnaceCV* cv;
   FurnaceGUITexture* cvTex;
+  uint64_t lastCVFrame;
+  int cvFrameTime, cvFrameHold;
 
   FurnaceGUITexture* sampleTex;
   int sampleTexW, sampleTexH;
@@ -1657,6 +1670,7 @@ class FurnaceGUI {
   std::vector<String> availAudioDrivers;
 
   bool quit, warnQuit, willCommit, edit, editClone, isPatUnique, modified, displayError, displayExporting, vgmExportLoop, vgmExportPatternHints;
+
   bool vgmExportDirectStream, displayInsTypeList, displayWaveSizeList;
   bool portrait, injectBackUp, mobileMenuOpen, warnColorPushed;
   bool wantCaptureKeyboard, oldWantCaptureKeyboard, displayMacroMenu;
@@ -1664,7 +1678,7 @@ class FurnaceGUI {
   bool wantScrollListIns, wantScrollListWave, wantScrollListSample;
   bool displayPendingIns, pendingInsSingle, displayPendingRawSample, snesFilterHex, modTableHex, displayEditString;
   bool displayPendingSamples, replacePendingSample;
-  bool displayExportingROM;
+  bool displayExportingROM, displayExportingCS;
   bool changeCoarse;
   bool mobileEdit;
   bool killGraphics;
@@ -1894,6 +1908,7 @@ class FurnaceGUI {
     int insEditColorize;
     int metroVol;
     int sampleVol;
+    String exportFfmpegPath;
     int pushNibble;
     int scrollChangesOrder;
     int oplStandardWaveNames;
@@ -1905,6 +1920,7 @@ class FurnaceGUI {
     int eventDelay;
     int moveWindowTitle;
     int hiddenSystems;
+    int mswEnabled;
     int horizontalDataView;
     int noMultiSystem;
     int oldMacroVSlider;
@@ -1993,6 +2009,7 @@ class FurnaceGUI {
     int glBlueSize;
     int glAlphaSize;
     int glDepthSize;
+    int glSetBS;
     int glStencilSize;
     int glBufferSize;
     int glDoubleBuffer;
@@ -2147,6 +2164,7 @@ class FurnaceGUI {
       insEditColorize(0),
       metroVol(100),
       sampleVol(50),
+      exportFfmpegPath(""),
       pushNibble(0),
       scrollChangesOrder(0),
       oplStandardWaveNames(0),
@@ -2158,6 +2176,7 @@ class FurnaceGUI {
       eventDelay(0),
       moveWindowTitle(1),
       hiddenSystems(0),
+      mswEnabled(0),
       horizontalDataView(0),
       noMultiSystem(0),
       oldMacroVSlider(0),
@@ -2245,6 +2264,7 @@ class FurnaceGUI {
       glBlueSize(8),
       glAlphaSize(0),
       glDepthSize(24),
+      glSetBS(0),
       glStencilSize(0),
       glBufferSize(32),
       glDoubleBuffer(1),
@@ -2738,11 +2758,19 @@ class FurnaceGUI {
 
   // command stream player
   ImGuiListClipper csClipper;
+  unsigned int csDisAsmAddr;
+  std::vector<CSDisAsmIns> csDisAsm;
+  std::thread* csExportThread;
+  SafeWriter* csExportResult;
+  bool csExportTarget, csExportDone;
+  String csExportPath;
 
   // export options
   DivAudioExportOptions audioExportOptions;
   int dmfExportVersion;
   FurnaceGUIExportTypes curExportType;
+  unsigned int csExportDisablePass;
+  DivCSProgress csProgress;
 
   // ROM export specific
   DivROMExportOptions romTarget;
@@ -2760,6 +2788,8 @@ class FurnaceGUI {
 
   std::vector<String> randomDemoSong;
 
+  void commandExportOptions();
+  
   void drawExportAudio(bool onWindow=false);
   void drawExportVGM(bool onWindow=false);
   void drawExportROM(bool onWindow=false);
@@ -3031,6 +3061,7 @@ class FurnaceGUI {
   void pushRecentFile(String path);
   void pushRecentSys(const char* path);
   void exportAudio(String path, DivAudioExportModes mode);
+  void exportCmdStream(bool target, String path);
   void delFirstBackup(String name);
 
   bool parseSysEx(unsigned char* data, size_t len);

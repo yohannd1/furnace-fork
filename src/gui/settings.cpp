@@ -705,16 +705,26 @@ void FurnaceGUI::drawSettings() {
               if (settings.glDepthSize>128) settings.glDepthSize=128;
               settingsChanged=true;
             }
-            if (ImGui::InputInt(_("Stencil buffer size"),&settings.glStencilSize)) {
-              if (settings.glStencilSize<0) settings.glStencilSize=0;
-              if (settings.glStencilSize>32) settings.glStencilSize=32;
+            
+            bool glSetBSB=settings.glSetBS;
+            if (ImGui::Checkbox(_("Set stencil and buffer sizes"),&glSetBSB)) {
+              settings.glSetBS=glSetBSB;
               settingsChanged=true;
             }
-            if (ImGui::InputInt(_("Buffer size"),&settings.glBufferSize)) {
-              if (settings.glBufferSize<0) settings.glBufferSize=0;
-              if (settings.glBufferSize>128) settings.glBufferSize=128;
-              settingsChanged=true;
+
+            if (settings.glSetBS) {
+              if (ImGui::InputInt(_("Stencil buffer size"),&settings.glStencilSize)) {
+                if (settings.glStencilSize<0) settings.glStencilSize=0;
+                if (settings.glStencilSize>32) settings.glStencilSize=32;
+                settingsChanged=true;
+              }
+              if (ImGui::InputInt(_("Buffer size"),&settings.glBufferSize)) {
+                if (settings.glBufferSize<0) settings.glBufferSize=0;
+                if (settings.glBufferSize>128) settings.glBufferSize=128;
+                settingsChanged=true;
+              }
             }
+
             bool glDoubleBufferB=settings.glDoubleBuffer;
             if (ImGui::Checkbox(_("Double buffer"),&glDoubleBufferB)) {
               settings.glDoubleBuffer=glDoubleBufferB;
@@ -1479,6 +1489,16 @@ void FurnaceGUI::drawSettings() {
           if (settings.sampleVol<0) settings.sampleVol=0;
           if (settings.sampleVol>100) settings.sampleVol=100;
           e->setSamplePreviewVol(((float)settings.sampleVol)/100.0f);
+          settingsChanged=true;
+        }
+
+        // SUBSECTION EXPORT
+        CONFIG_SUBSECTION(_("Export"));
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text(_("ffmpeg executable path"));
+        ImGui::SameLine();
+        if (ImGui::InputText("##FfmpegPath",&settings.exportFfmpegPath)) {
+          e->exportFfmpegSearched=false;
           settingsChanged=true;
         }
 
@@ -4685,6 +4705,10 @@ void FurnaceGUI::drawSettings() {
               mmlString[30]=_(":smile: :star_struck: :sunglasses: :ok_hand:");
               settings.hiddenSystems=!settings.hiddenSystems;
             }
+            if (checker==0x3affa803 && checker1==0x37db2520) {
+              mmlString[30]=_("now cutting FM chip costs");
+              settings.mswEnabled=!settings.mswEnabled;
+            }
             if (checker==0xe888896b && checker1==0xbde) {
               mmlString[30]=_("enabled all instrument types");
               settings.displayAllInsTypes=!settings.displayAllInsTypes;
@@ -4841,6 +4865,7 @@ void FurnaceGUI::readConfig(DivConfig& conf, FurnaceGUISettingGroups groups) {
     settings.glBlueSize=conf.getInt("glBlueSize",8);
     settings.glAlphaSize=conf.getInt("glAlphaSize",0);
     settings.glDepthSize=conf.getInt("glDepthSize",24);
+    settings.glSetBS=conf.getInt("glSetBS",0);
     settings.glStencilSize=conf.getInt("glStencilSize",0);
     settings.glBufferSize=conf.getInt("glBufferSize",32);
     settings.glDoubleBuffer=conf.getInt("glDoubleBuffer",1);
@@ -4857,6 +4882,7 @@ void FurnaceGUI::readConfig(DivConfig& conf, FurnaceGUISettingGroups groups) {
     settings.defaultAuthorName=conf.getString("defaultAuthorName","");
 
     settings.hiddenSystems=conf.getInt("hiddenSystems",0);
+    settings.mswEnabled=conf.getInt("mswEnabled",0);
     settings.allowEditDocking=conf.getInt("allowEditDocking",1);
     settings.sysFileDialog=conf.getInt("sysFileDialog",SYS_FILE_DIALOG_DEFAULT);
     settings.displayAllInsTypes=conf.getInt("displayAllInsTypes",0);
@@ -4921,6 +4947,7 @@ void FurnaceGUI::readConfig(DivConfig& conf, FurnaceGUISettingGroups groups) {
 
     settings.metroVol=conf.getInt("metroVol",100);
     settings.sampleVol=conf.getInt("sampleVol",50);
+    settings.exportFfmpegPath=conf.getString("exportFfmpegPath","");
 
     settings.wasapiEx=conf.getInt("wasapiEx",0);
 
@@ -5305,6 +5332,7 @@ void FurnaceGUI::readConfig(DivConfig& conf, FurnaceGUISettingGroups groups) {
   clampSetting(settings.eventDelay,0,1);
   clampSetting(settings.moveWindowTitle,0,1);
   clampSetting(settings.hiddenSystems,0,1);
+  clampSetting(settings.mswEnabled,0,1);
   clampSetting(settings.horizontalDataView,0,1);
   clampSetting(settings.noMultiSystem,0,1);
   clampSetting(settings.oldMacroVSlider,0,1);
@@ -5395,7 +5423,9 @@ void FurnaceGUI::readConfig(DivConfig& conf, FurnaceGUISettingGroups groups) {
   clampSetting(settings.glBlueSize,0,32);
   clampSetting(settings.glAlphaSize,0,32);
   clampSetting(settings.glDepthSize,0,128);
+  clampSetting(settings.glSetBS,0,1);
   clampSetting(settings.glStencilSize,0,32);
+  clampSetting(settings.glBufferSize,0,128);
   clampSetting(settings.glDoubleBuffer,0,1);
   clampSetting(settings.backupEnable,0,1);
   clampSetting(settings.backupInterval,10,86400);
@@ -5407,6 +5437,8 @@ void FurnaceGUI::readConfig(DivConfig& conf, FurnaceGUISettingGroups groups) {
 
   if (settings.exportLoops<0.0) settings.exportLoops=0.0;
   if (settings.exportFadeOut<0.0) settings.exportFadeOut=0.0;
+
+  audioExportOptions.extraFlags=conf.getString("audioExportExtraFlags","");
 }
 
 void FurnaceGUI::writeConfig(DivConfig& conf, FurnaceGUISettingGroups groups) {
@@ -5432,7 +5464,9 @@ void FurnaceGUI::writeConfig(DivConfig& conf, FurnaceGUISettingGroups groups) {
     conf.set("glBlueSize",settings.glBlueSize);
     conf.set("glAlphaSize",settings.glAlphaSize);
     conf.set("glDepthSize",settings.glDepthSize);
+    conf.set("glSetBS",settings.glSetBS);
     conf.set("glStencilSize",settings.glStencilSize);
+    conf.set("glBufferSize",settings.glBufferSize);
     conf.set("glDoubleBuffer",settings.glDoubleBuffer);
 
     conf.set("vsync",settings.vsync);
@@ -5447,6 +5481,7 @@ void FurnaceGUI::writeConfig(DivConfig& conf, FurnaceGUISettingGroups groups) {
     conf.set("defaultAuthorName",settings.defaultAuthorName);
 
     conf.set("hiddenSystems",settings.hiddenSystems);
+    conf.set("mswEnabled",settings.mswEnabled);
     conf.set("allowEditDocking",settings.allowEditDocking);
     conf.set("sysFileDialog",settings.sysFileDialog);
     conf.set("displayAllInsTypes",settings.displayAllInsTypes);
@@ -5462,6 +5497,7 @@ void FurnaceGUI::writeConfig(DivConfig& conf, FurnaceGUISettingGroups groups) {
     conf.set("persistFadeOut",settings.persistFadeOut);
     conf.set("exportLoops",settings.exportLoops);
     conf.set("exportFadeOut",settings.exportFadeOut);
+
 
     conf.set("doubleClickTime",settings.doubleClickTime);
     conf.set("disableFadeIn",settings.disableFadeIn);
@@ -5505,6 +5541,7 @@ void FurnaceGUI::writeConfig(DivConfig& conf, FurnaceGUISettingGroups groups) {
 
     conf.set("metroVol",settings.metroVol);
     conf.set("sampleVol",settings.sampleVol);
+    conf.set("exportFfmpegPath",settings.exportFfmpegPath);
 
     conf.set("wasapiEx",settings.wasapiEx);
 

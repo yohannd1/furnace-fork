@@ -27,6 +27,7 @@
 #include "util.h"
 #include "../ta-log.h"
 #include "../fileutils.h"
+#include "../stringutils.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "ImGuiFileDialog.h"
@@ -1761,6 +1762,15 @@ void FurnaceGUI::openFileDialog(FurnaceGUIFileDialogs type) {
     }
   }
 
+  const auto getAudioExportGlob=[this]() -> std::vector<String> {
+    if (audioExportOptions.curWriter==DIV_EXPORT_WRITER_SNDFILE) {
+      return {_("Wave file"), "*.wav"};
+    } else {
+      const DivAudioCommandExportDef& ed=audioExportOptions.commandExportWriterDefs[audioExportOptions.curCommandWriterIndex];
+      return {_(ed.name.c_str()), fmt::sprintf("*.%s",ed.fileExt)};
+    }
+  };
+
   switch (type) {
     case GUI_FILE_OPEN:
       if (!dirExists(workingDirSong)) workingDirSong=getHomeDir();
@@ -1997,36 +2007,39 @@ void FurnaceGUI::openFileDialog(FurnaceGUIFileDialogs type) {
         dpiScale
       );
       break;
-    case GUI_FILE_EXPORT_AUDIO_ONE:
+    case GUI_FILE_EXPORT_AUDIO_ONE: {
       if (!dirExists(workingDirAudioExport)) workingDirAudioExport=getHomeDir();
       hasOpened=fileDialog->openSave(
         _("Export Audio"),
-        {_("Wave file"), "*.wav"},
+        getAudioExportGlob(),
         workingDirAudioExport,
         dpiScale,
         (settings.autoFillSave)?shortName:""
       );
       break;
-    case GUI_FILE_EXPORT_AUDIO_PER_SYS:
+    }
+    case GUI_FILE_EXPORT_AUDIO_PER_SYS: {
       if (!dirExists(workingDirAudioExport)) workingDirAudioExport=getHomeDir();
       hasOpened=fileDialog->openSave(
         _("Export Audio"),
-        {_("Wave file"), "*.wav"},
+        getAudioExportGlob(),
         workingDirAudioExport,
         dpiScale,
         (settings.autoFillSave)?shortName:""
       );
       break;
-    case GUI_FILE_EXPORT_AUDIO_PER_CHANNEL:
+    }
+    case GUI_FILE_EXPORT_AUDIO_PER_CHANNEL: {
       if (!dirExists(workingDirAudioExport)) workingDirAudioExport=getHomeDir();
       hasOpened=fileDialog->openSave(
         _("Export Audio"),
-        {_("Wave file"), "*.wav"},
+        getAudioExportGlob(),
         workingDirAudioExport,
         dpiScale,
         (settings.autoFillSave)?shortName:""
       );
       break;
+    }
     case GUI_FILE_EXPORT_VGM:
       if (!dirExists(workingDirVGMExport)) workingDirVGMExport=getHomeDir();
       hasOpened=fileDialog->openSave(
@@ -2609,7 +2622,6 @@ int FurnaceGUI::loadStream(String path) {
   return 0;
 }
 
-
 void FurnaceGUI::exportAudio(String path, DivAudioExportModes mode) {
   songOrdersLengths.clear();
 
@@ -2646,6 +2658,18 @@ void FurnaceGUI::exportAudio(String path, DivAudioExportModes mode) {
   curProgress=0.0f;
 
   displayExporting=true;
+}
+
+void FurnaceGUI::exportCmdStream(bool target, String path) {
+  csExportPath=path;
+  csExportTarget=target;
+  csExportDone=false;
+  csExportThread=new std::thread([this]() {
+    SafeWriter* w=e->saveCommand(&csProgress,csExportDisablePass);
+    csExportResult=w;
+    csExportDone=true;
+  });
+  displayExportingCS=true;
 }
 
 void FurnaceGUI::editStr(String* which) {
@@ -2839,10 +2863,7 @@ void FurnaceGUI::processDrags(int dragX, int dragY) {
 }
 
 #define checkExtension(x) \
-  String lowerCase=fileName; \
-  for (char& i: lowerCase) { \
-    if (i>='A' && i<='Z') i+='a'-'A'; \
-  } \
+  String lowerCase=lowerCaseCopy(fileName.c_str()); \
   if (lowerCase.size()<strlen(x) || lowerCase.rfind(x)!=lowerCase.size()-strlen(x)) { \
     fileName+=x; \
   }
@@ -3924,8 +3945,8 @@ bool FurnaceGUI::loop() {
               }
               nextWindow=GUI_WINDOW_WAVE_LIST;
               MARK_MODIFIED;
-            } 
-            else if (!samples.empty()) 
+            }
+            else if (!samples.empty())
             {
               if (e->song.sampleLen!=sampleCountBefore) {
                 //e->renderSamplesP();
@@ -3940,7 +3961,7 @@ bool FurnaceGUI::loop() {
                 sampleCount=e->addSamplePtr(s);
               }
               //sampleCount=e->addSamplePtr(droppedSample);
-              if (sampleCount>=0 && settings.selectAssetOnLoad) 
+              if (sampleCount>=0 && settings.selectAssetOnLoad)
               {
                 curSample=sampleCount;
                 updateSampleTex=true;
@@ -4223,7 +4244,7 @@ bool FurnaceGUI::loop() {
       killGraphics=false;
 
       logW("graphics are dead! restarting...");
-      
+
       if (sampleTex!=NULL) {
         rend->destroyTexture(sampleTex);
         sampleTex=NULL;
@@ -4708,6 +4729,7 @@ bool FurnaceGUI::loop() {
           if (ImGui::MenuItem(_("register view"),BIND_FOR(GUI_ACTION_WINDOW_REGISTER_VIEW),regViewOpen)) regViewOpen=!regViewOpen;
           if (ImGui::MenuItem(_("statistics"),BIND_FOR(GUI_ACTION_WINDOW_STATS),statsOpen)) statsOpen=!statsOpen;
           if (ImGui::MenuItem(_("memory composition"),BIND_FOR(GUI_ACTION_WINDOW_MEMORY),memoryOpen)) memoryOpen=!memoryOpen;
+          if (ImGui::MenuItem(_("command stream player"),BIND_FOR(GUI_ACTION_WINDOW_CS_PLAYER),csPlayerOpen)) csPlayerOpen=!csPlayerOpen;
           ImGui::EndMenu();
         }
         ImGui::Separator();
@@ -5163,11 +5185,18 @@ bool FurnaceGUI::loop() {
           if (curFileDialog==GUI_FILE_SAVE_DMF_LEGACY) {
             checkExtension(".dmf");
           }
-          if (curFileDialog==GUI_FILE_SAMPLE_SAVE ||
-              curFileDialog==GUI_FILE_EXPORT_AUDIO_ONE ||
+          if (curFileDialog==GUI_FILE_SAMPLE_SAVE) {
+            checkExtension(".wav");
+          }
+          if (curFileDialog==GUI_FILE_EXPORT_AUDIO_ONE ||
               curFileDialog==GUI_FILE_EXPORT_AUDIO_PER_SYS ||
               curFileDialog==GUI_FILE_EXPORT_AUDIO_PER_CHANNEL) {
-            checkExtension(".wav");
+            if (audioExportOptions.curWriter==DIV_EXPORT_WRITER_SNDFILE) {
+              checkExtension(".wav");
+            } else {
+              String ext=fmt::sprintf(".%s",audioExportOptions.commandExportWriterDefs[audioExportOptions.curCommandWriterIndex].fileExt);
+              checkExtension(ext.c_str());
+            }
           }
           if (curFileDialog==GUI_FILE_INS_SAVE) {
             checkExtension(".fui");
@@ -5393,8 +5422,8 @@ bool FurnaceGUI::loop() {
                   } else {;
                     showError(e->getLastError());
                   }
-                } 
-                else 
+                }
+                else
                 {
                   if((int)samples.size() == 1)
                   {
@@ -5404,13 +5433,13 @@ bool FurnaceGUI::loop() {
                       {
                         warn=true;
                         errs+=fmt::sprintf("- %s: %s\n",i,e->getLastError());
-                      } 
-                      else 
+                      }
+                      else
                       {
                         showError(e->getLastError());
                       }
-                    } 
-                    else 
+                    }
+                    else
                     {
                       MARK_MODIFIED;
                     }
@@ -5693,24 +5722,7 @@ bool FurnaceGUI::loop() {
               break;
             }
             case GUI_FILE_EXPORT_CMDSTREAM: {
-              SafeWriter* w=e->saveCommand();
-              if (w!=NULL) {
-                FILE* f=ps_fopen(copyOfName.c_str(),"wb");
-                if (f!=NULL) {
-                  fwrite(w->getFinalBuf(),1,w->size(),f);
-                  fclose(f);
-                  pushRecentSys(copyOfName.c_str());
-                } else {
-                  showError(_("could not open file!"));
-                }
-                w->finish();
-                delete w;
-                if (!e->getWarnings().empty()) {
-                  showWarning(e->getWarnings(),GUI_WARN_GENERIC);
-                }
-              } else {
-                showError(fmt::sprintf(_("could not write command stream! (%s)"),e->getLastError()));
-              }
+              exportCmdStream(false,copyOfName);
               break;
             }
             case GUI_FILE_LOAD_MAIN_FONT:
@@ -5844,6 +5856,11 @@ bool FurnaceGUI::loop() {
     if (displayExportingROM) {
       displayExportingROM=false;
       ImGui::OpenPopup(_("ROM Export Progress"));
+    }
+
+    if (displayExportingCS) {
+      displayExportingCS=false;
+      ImGui::OpenPopup(_("CmdStream Export Progress"));
     }
 
     if (displayNew) {
@@ -6039,6 +6056,74 @@ bool FurnaceGUI::loop() {
             pendingExport=NULL;
             ImGui::CloseCurrentPopup();
           }
+        }
+      }
+      ImGui::EndPopup();
+    }
+
+    centerNextWindow(_("CmdStream Export Progress"),canvasW,canvasH);
+    ImGui::SetNextWindowSizeConstraints(romExportMinSize,romExportMaxSize);
+    if (ImGui::BeginPopupModal(_("CmdStream Export Progress"),NULL)) {
+      if (csExportThread==NULL) {
+        ImGui::TextWrapped("%s",_("it appears your Furnace has too many bugs in it. any song you can export?"));
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+        if (ImGui::Button(_("Talk With Devs"),ImVec2(ImGui::GetContentRegionAvail().x/3.0f,0.0f))) {
+          ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(_("Ask on Bug Report"),ImVec2(ImGui::GetContentRegionAvail().x/3.0f,0.0f))) {
+          ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(_("View Issues"),ImVec2(ImGui::GetContentRegionAvail().x/3.0f,0.0f))) {
+          ImGui::CloseCurrentPopup();
+        }
+      } else {
+        WAKE_UP;
+        ImGui::Text("Exporting... %d",csProgress.count);
+
+        // check whether we're done
+        if (csExportDone) {
+          csExportThread->join();
+          delete csExportThread;
+          csExportThread=NULL;
+
+          if (csExportTarget) { // command stream player
+            if (csExportResult!=NULL) {
+              if (!e->playStream(csExportResult->getFinalBuf(),csExportResult->size())) {
+                showError(e->getLastError());
+                csExportResult->finish();
+                delete csExportResult;
+              } else {
+                csExportResult->disown();
+                delete csExportResult;
+              }
+            } else {
+              showError(_("oh no! it broke!"));
+            }
+            csExportResult=NULL;
+          } else { // command stream export
+            if (csExportResult!=NULL) {
+              FILE* f=ps_fopen(csExportPath.c_str(),"wb");
+              if (f!=NULL) {
+                fwrite(csExportResult->getFinalBuf(),1,csExportResult->size(),f);
+                fclose(f);
+                pushRecentSys(csExportPath.c_str());
+              } else {
+                showError(_("could not open file!"));
+              }
+              csExportResult->finish();
+              delete csExportResult;
+              if (!e->getWarnings().empty()) {
+                showWarning(e->getWarnings(),GUI_WARN_GENERIC);
+              }
+            } else {
+              showError(fmt::sprintf(_("could not write command stream! (%s)"),e->getLastError()));
+            }
+            csExportResult=NULL;
+          }
+
+          ImGui::CloseCurrentPopup();
         }
       }
       ImGui::EndPopup();
@@ -6736,29 +6821,29 @@ bool FurnaceGUI::loop() {
 
       bool anySelected=false;
       float sizeY=ImGui::GetFrameHeightWithSpacing()*pendingSamples.size();
-      if (sizeY>(canvasH-180.0*dpiScale)) 
+      if (sizeY>(canvasH-180.0*dpiScale))
       {
         sizeY=canvasH-180.0*dpiScale;
         if (sizeY<60.0*dpiScale) sizeY=60.0*dpiScale;
       }
-      if (ImGui::BeginTable("PendingSamplesList",1,ImGuiTableFlags_ScrollY,ImVec2(0.0f,sizeY))) 
+      if (ImGui::BeginTable("PendingSamplesList",1,ImGuiTableFlags_ScrollY,ImVec2(0.0f,sizeY)))
       {
         if (sampleBankSearchQuery.empty())
         {
-          for (size_t i=0; i<pendingSamples.size(); i++) 
+          for (size_t i=0; i<pendingSamples.size(); i++)
           {
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             String id=fmt::sprintf("%d: %s",(int)i,pendingSamples[i].first->name);
-            if (pendingInsSingle) 
+            if (pendingInsSingle)
             {
-              if (ImGui::Selectable(id.c_str())) 
+              if (ImGui::Selectable(id.c_str()))
               {
                 pendingSamples[i].second=true;
                 quitPlease=true;
               }
-            } 
-            else 
+            }
+            else
             {
               // TODO:fixstyle from hereonwards
               ImGuiIO& io = ImGui::GetIO();
@@ -6787,22 +6872,22 @@ bool FurnaceGUI::loop() {
           {
             String lowerCase=sampleBankSearchQuery;
 
-            for (char& ii: lowerCase) 
+            for (char& ii: lowerCase)
             {
               if (ii>='A' && ii<='Z') ii+='a'-'A';
             }
 
             sampleBankSearchResults.clear();
-            for (int j=0; j < (int)pendingSamples.size(); j++) 
+            for (int j=0; j < (int)pendingSamples.size(); j++)
             {
               String lowerCase1 = pendingSamples[j].first->name;
 
-              for (char& ii: lowerCase1) 
+              for (char& ii: lowerCase1)
               {
                 if (ii>='A' && ii<='Z') ii+='a'-'A';
               }
 
-              if (lowerCase1.find(lowerCase)!=String::npos) 
+              if (lowerCase1.find(lowerCase)!=String::npos)
               {
                 sampleBankSearchResults.push_back(std::make_pair(pendingSamples[j].first, pendingSamples[j].second));
               }
@@ -6866,11 +6951,11 @@ bool FurnaceGUI::loop() {
         }
         quitPlease=true;
       }
-      if (quitPlease) 
+      if (quitPlease)
       {
         ImGui::CloseCurrentPopup();
         int counter = 0;
-        for (std::pair<DivSample*,bool>& i: pendingSamples) 
+        for (std::pair<DivSample*,bool>& i: pendingSamples)
         {
           if (!i.second)
           {
@@ -7133,7 +7218,7 @@ bool FurnaceGUI::loop() {
 #endif
 
               String finalPath=backupPath+String(DIR_SEPARATOR_STR)+backupFileName;
-              
+
               FILE* outFile=ps_fopen(finalPath.c_str(),"wb");
               if (outFile!=NULL) {
                 if (fwrite(w->getFinalBuf(),1,w->size(),outFile)!=w->size()) {
@@ -7158,7 +7243,7 @@ bool FurnaceGUI::loop() {
     }
 
     sampleMapWaitingInput=(curWindow==GUI_WINDOW_INS_EDIT && sampleMapFocused);
-    
+
     curWindowThreadSafe=curWindow;
 
     if (curWindow!=curWindowLast) {
@@ -7295,7 +7380,7 @@ bool FurnaceGUI::loop() {
     if (shallDetectScale) {
       if (--shallDetectScale<1) {
         if (settings.dpiScale<0.5f) {
-          const char* videoBackend=SDL_GetCurrentVideoDriver();      
+          const char* videoBackend=SDL_GetCurrentVideoDriver();
           double newScale=getScaleFactor(videoBackend,sdlWin);
           if (newScale<0.1f) {
             logW("scale what?");
@@ -7995,6 +8080,7 @@ void FurnaceGUI::syncState() {
   chanOscOpen=e->getConfBool("chanOscOpen",false);
   xyOscOpen=e->getConfBool("xyOscOpen",false);
   memoryOpen=e->getConfBool("memoryOpen",false);
+  csPlayerOpen=e->getConfBool("csPlayerOpen",false);
   volMeterOpen=e->getConfBool("volMeterOpen",true);
   statsOpen=e->getConfBool("statsOpen",false);
   compatFlagsOpen=e->getConfBool("compatFlagsOpen",false);
@@ -8160,6 +8246,7 @@ void FurnaceGUI::commitState(DivConfig& conf) {
   conf.set("chanOscOpen",chanOscOpen);
   conf.set("xyOscOpen",xyOscOpen);
   conf.set("memoryOpen",memoryOpen);
+  conf.set("csPlayerOpen",csPlayerOpen);
   conf.set("volMeterOpen",volMeterOpen);
   conf.set("statsOpen",statsOpen);
   conf.set("compatFlagsOpen",compatFlagsOpen);
@@ -8268,6 +8355,8 @@ void FurnaceGUI::commitState(DivConfig& conf) {
   conf.set("xyOscIntensity",xyOscIntensity);
   conf.set("xyOscThickness",xyOscThickness);
 
+  conf.set("audioExportExtraFlags",audioExportOptions.extraFlags);
+
   // commit recent files
   for (int i=0; i<30; i++) {
     String key=fmt::sprintf("recentFile%d",i);
@@ -8339,6 +8428,9 @@ FurnaceGUI::FurnaceGUI():
   vibrator(NULL),
   vibratorAvailable(false),
   cv(NULL),
+  lastCVFrame(0),
+  cvFrameTime(100000),
+  cvFrameHold(0),
   sampleTex(NULL),
   sampleTexW(0),
   sampleTexH(0),
@@ -8383,6 +8475,7 @@ FurnaceGUI::FurnaceGUI():
   displayPendingSamples(false),
   replacePendingSample(false),
   displayExportingROM(false),
+  displayExportingCS(false),
   changeCoarse(false),
   mobileEdit(false),
   killGraphics(false),
@@ -8876,8 +8969,14 @@ FurnaceGUI::FurnaceGUI():
   introStopped(false),
   curTutorial(-1),
   curTutorialStep(0),
+  csDisAsmAddr(0),
+  csExportThread(NULL),
+  csExportResult(NULL),
+  csExportTarget(false),
+  csExportDone(false),
   dmfExportVersion(0),
   curExportType(GUI_EXPORT_NONE),
+  csExportDisablePass(0),
   romTarget(DIV_ROM_ABSTRACT),
   romMultiFile(false),
   romExportSave(false),
