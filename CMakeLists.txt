@@ -1312,3 +1312,19 @@ if (NOT ANDROID OR TERMUX)
 endif()
 
 target_compile_definitions(${FURNACE} PRIVATE ${DEPENDENCIES_DEFINES})
+
+find_package(Doxygen)
+if (DOXYGEN_FOUND)
+    # Reference: https://www.doxygen.nl/manual/config.html
+    set(DOXYGEN_OUTPUT_DIRECTORY doxygen)
+    set(DOXYGEN_HIDE_UNDOC_RELATIONS NO)
+    set(DOXYGEN_HAVE_DOT NO)
+    # set(DOXYGEN_EXTRACT_ALL YES)
+    # set(DOXYGEN_EXTRACT_PRIVATE YES)
+    # set(DOXYGEN_EXTRACT_PACKAGE YES)
+    # set(DOXYGEN_EXTRACT_STATIC YES)
+
+    doxygen_add_docs(doxygen src)
+else()
+    message("Doxygen not found; skipping its step")
+endif()
