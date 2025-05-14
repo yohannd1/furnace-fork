@@ -1,13 +1,15 @@
 ## hello there!!!
 
-This is a fork of [tildearrow's furnace tracker](https://github.com/tildearrow/furnace/), where I
-do some extra changes to it, be them personal or yet to be merged.
+This is a fork of [tildearrow's furnace
+tracker](https://github.com/tildearrow/furnace/), mainly for making PRs.
 
-Current state:
-- [enabled IGFD bookmarks](https://github.com/tildearrow/furnace/pull/1140): closed, pending fixes to IGFD
-- [command palette](https://github.com/tildearrow/furnace/pull/1160): MERGED!
+There are some PRs that have been rejected (or delayed) which I use,
+though:
+- [enabled IGFD bookmarks](https://github.com/tildearrow/furnace/pull/1140): pending fixes to IGFD
 
-These features at available at the `yohanan` branch, which I compile using [my PKGBUILD](https://github.com/YohananDiamond/dotfiles/blob/master/pkgbuilds/furnace.PKGBUILD)
+These features at available at the `yohanan` branch, which I compile
+using [my
+PKGBUILD](https://github.com/YohananDiamond/dotfiles/blob/master/pkgbuilds/furnace.PKGBUILD)
 
 Any contributions not related to this should go to tildearrow's repo, though :P
 
