@@ -586,10 +586,7 @@ void DivPlatformOPL::acquire_ymfm3(short** buf, size_t len) {
         unsigned char ch=(i<12 && chan[i&(~1)].fourOp)?outChanMap[i^1]:outChanMap[i];
         if (ch==255) continue;
         if (isMuted[i]) continue;
-        int chOut=fmChan[ch]->debug_output(0);
-        if (chOut==0) {
-          chOut=fmChan[ch]->debug_output(1);
-        }
+        int chOut=fmChan[ch]->debug_output(0)+fmChan[ch]->debug_output(1);
         if (chOut==0) {
           chOut=fmChan[ch]->debug_output(2);
         }
@@ -597,9 +594,9 @@ void DivPlatformOPL::acquire_ymfm3(short** buf, size_t len) {
           chOut=fmChan[ch]->debug_output(3);
         }
         if (i==15) {
-          oscBuf[i]->putSample(h,CLAMP(chOut,-32768,32767));
+          oscBuf[i]->putSample(h,CLAMP(chOut>>1,-32768,32767));
         } else {
-          oscBuf[i]->putSample(h,CLAMP(chOut<<1,-32768,32767));
+          oscBuf[i]->putSample(h,CLAMP(chOut,-32768,32767));
         }
       }
       oscBuf[16]->putSample(h,CLAMP(fmChan[7]->debug_special2()<<1,-32768,32767));
@@ -611,17 +608,14 @@ void DivPlatformOPL::acquire_ymfm3(short** buf, size_t len) {
         unsigned char ch=outChanMap[i];
         if (ch==255) continue;
         if (isMuted[i]) continue;
-        int chOut=fmChan[ch]->debug_output(0);
-        if (chOut==0) {
-          chOut=fmChan[ch]->debug_output(1);
-        }
+        int chOut=fmChan[ch]->debug_output(0)+fmChan[ch]->debug_output(1);
         if (chOut==0) {
           chOut=fmChan[ch]->debug_output(2);
         }
         if (chOut==0) {
           chOut=fmChan[ch]->debug_output(3);
         }
-        oscBuf[i]->putSample(h,CLAMP(chOut<<1,-32768,32767));
+        oscBuf[i]->putSample(h,CLAMP(chOut,-32768,32767));
       }
     }
   }
@@ -2641,10 +2635,12 @@ int DivPlatformOPL::dispatch(DivCommand c) {
 }
 
 void DivPlatformOPL::forceIns() {
+  int oplChans=0;
   if (oplType==3) {
     chanMap=properDrums?chanMapOPL3Drums:chanMapOPL3;
     melodicChans=properDrums?15:18;
     totalChans=properDrums?20:18;
+    oplChans=totalChans;
     if (chipType==4) {
       pcmChanOffs=totalChans;
       totalChans+=24;
@@ -2653,8 +2649,9 @@ void DivPlatformOPL::forceIns() {
     chanMap=properDrums?chanMapOPL2Drums:chanMapOPL2;
     melodicChans=properDrums?6:9;
     totalChans=properDrums?11:9;
+    oplChans=totalChans;
   }
-  for (int i=0; i<totalChans; i++) {
+  for (int i=0; i<oplChans; i++) {
     int ops=(slots[3][i]!=255 && chan[i].state.ops==4 && oplType==3)?4:2;
     chan[i].insChanged=true;
     chan[i].freqChanged=true;
