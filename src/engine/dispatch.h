@@ -315,6 +315,12 @@ enum DivDispatchCmds {
 
   DIV_CMD_WS_GLOBAL_SPEAKER_VOLUME, // (multiplier)
 
+  DIV_CMD_FM_ALG,
+  DIV_CMD_FM_FMS,
+  DIV_CMD_FM_AMS,
+  DIV_CMD_FM_FMS2,
+  DIV_CMD_FM_AMS2,
+
   DIV_CMD_MAX
 };
 
@@ -558,6 +564,8 @@ struct DivChannelModeHints {
   // - 18: inc linear
   // - 19: inc bent
   // - 20: direct
+  // - 21: warning
+  // - 22: error
   unsigned char type[4];
   // up to 4
   unsigned char count;

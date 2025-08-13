@@ -4,7 +4,9 @@
 
 the biggest multi-system chiptune tracker ever made!
 
-[downloads](#downloads) | [discussion/help](#quick-references) | [developer info](#developer-info) | [Unix/Linux packages](#packages)
+[mini-site](https://tildearrow.org/furnace/) | [downloads](#downloads) | [installation](#installation) | [Unix/Linux packages](#packages)
+
+[documentation/discussion//help](#quick-references) | [developer info](#developer-info)
 
 ---
 ## downloads
@@ -14,6 +16,13 @@ check out the [Releases](https://github.com/tildearrow/furnace/releases) page. a
 for other operating systems, you may [build the source](#developer-info).
 
 [see here](https://nightly.link/tildearrow/furnace/workflows/build/master) for the latest unstable build.
+
+## installation
+
+- **Windows:** extract the .zip into a new directory for Furnace (or one you've created before). make a shortcut for `furnace.exe` if you wish.
+- **macOS:**  drag `Furnace` into the Applications directory (or the folder of your choice). drag everything else into a separate directory.
+  - when opening Furnace for the first time, make sure to right-click the Furnace app icon and then select Open.
+- **Linux/other:** instructions should be similar to Windows, unless you decide to install using your package manager (see [Unix/Linux packages](#packages)).
 
 ## features
 
@@ -102,6 +111,7 @@ for other operating systems, you may [build the source](#developer-info).
 - mix and match sound chips!
   - over 200 ready to use presets from computers, game consoles and arcade boards...
   - ...or create your own presets - up to 32 chips or a total of 128 channels!
+- modular layout that you may adapt to your needs
 - DefleMask compatibility
   - loads .dmf modules from all versions (beta 1 to 1.2.0)
   - saves .dmf modules - both modern and legacy
@@ -109,12 +119,12 @@ for other operating systems, you may [build the source](#developer-info).
   - loads/saves .dmp instruments and .dmw wavetables as well
   - clean-room design (guesswork and ABX tests only, no decompilation involved)
   - some bug/quirk implementation for increased playback accuracy through compatibility flags
-- VGM export
-- ZSM export for Commander X16
-- TIunA export for Atari 2600
-- SAP type R export for POKEY (playable by Altirra and [lzss-sap](https://github.com/dmsc/lzss-sap))
-- modular layout that you may adapt to your needs
-- audio file export - entire song, per chip or per channel
+- many export types:
+  - VGM export
+  - ZSM export for Commander X16
+  - TIunA export for Atari 2600
+  - SAP type R export for POKEY (playable by Altirra and [lzss-sap](https://github.com/dmsc/lzss-sap))
+  - audio file export - entire song, per chip or per channel
 - quality emulation cores (Nuked, MAME, SameBoy, Mednafen PCE, NSFplay, puNES, reSID, Stella, SAASound, vgsound_emu and ymfm)
 - wavetable synthesizer
   - available on wavetable chips
@@ -141,10 +151,16 @@ for other operating systems, you may [build the source](#developer-info).
 - open-source under GPLv2 or later.
 
 ---
+
 # quick references
 
-- **help**: check out the [documentation](doc/README.md), [quick start guide](doc/1-intro/quickstart.md), and [frequently asked questions (FAQ)](doc/1-intro/faq.md).
+- **help**:
+  - new to Furnace? check out the [quick start guide](doc/1-intro/quickstart.md).
+  - [documentation](doc/README.md).
+  - [frequently asked questions (FAQ)](doc/1-intro/faq.md).
 - **discussion**: see the [Discussions](https://github.com/tildearrow/furnace/discussions) section, or the [Discord](https://discord.gg/QhA26dXD23).
+  - these are the only **official** discussion channels for Furnace. **any other places are not official and not managed by me (tildearrow).**
+  - no, there isn't an official Furnace Facebook group. the one that seemingly exists isn't mine.
 
 ## packages
 
@@ -153,7 +169,6 @@ for other operating systems, you may [build the source](#developer-info).
 some people have provided packages for Unix/Unix-like distributions. here's a list.
 
 - **Flatpak**: yes! Furnace is now available on [Flathub](https://flathub.org/apps/org.tildearrow.furnace) thanks to ColinKinloch.
-
 - **Arch Linux**: [furnace](https://archlinux.org/packages/extra/x86_64/furnace/) is in the official repositories.
 - **Chimera Linux**: [furnace](https://pkgs.chimera-linux.org/package/current/contrib/x86_64/furnace) is in the contrib repository.
 - **FreeBSD**: [a package in ports](https://www.freshports.org/audio/furnace/) is available courtesy of ehaupt.
@@ -423,9 +438,12 @@ try running CMake again but tell it to use the Visual Studio generator (`-G "Vis
 
 #### CMake was unable to find a build program
 
-don't run CMake standalone unless you have Visual Studio or a compiler installed.
+if you are on Windows, don't run CMake standalone unless you have Visual Studio or a compiler installed.
 
 if you are in the MSYS2 MINGW64 environment, make sure you installed `mingw-w64-x86_64-cmake` instead of `cmake`. restart the environment after doing so.
+if you are not, exit and start the MINGW64 environment (not the UCRT64 one!). read the guide!
+
+if you are not using Windows then you probably haven't set your development environment up correctly. read the guide again.
 
 #### Does not match the generator used previously
 
@@ -440,7 +458,13 @@ if you are using MSYS2, make sure you have launched the MINGW64 environment. do 
 
 #### ALSA API requested but no ALSA dev libraries found
 
-install the ALSA development libraries (libasound-dev or something like that).
+if you are on Windows, using MSYS2, then you most likely disregarded the guide and are attempting to build in the UCRT64 environment. don't do that!
+
+get out of the UCRT64 environment and start the MINGW64 one.
+
+however, if you already are in the MINGW64 environment, then make sure you installed `mingw-w64-x86_64-cmake` instead of `cmake`. restart the environment after doing so.
+
+otherwise, install the ALSA development libraries (libasound-dev or something like that).
 
 also make sure you've installed the rest of dependencies so you don't hit one of the errors below...
 
