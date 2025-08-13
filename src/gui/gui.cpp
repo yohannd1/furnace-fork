@@ -559,19 +559,24 @@ const char* FurnaceGUI::getSystemName(DivSystem which) {
 }
 
 void FurnaceGUI::updateScroll(int amount) {
-  float lineHeight=(patFont->FontSize+2*dpiScale);
+  float lineHeight=(PAT_FONT_SIZE+2*dpiScale);
   nextScroll=lineHeight*amount;
   haveHitBounds=false;
 }
 
+void FurnaceGUI::updateScrollRaw(float amount) {
+  nextScroll=amount;
+  haveHitBounds=false;
+}
+
 void FurnaceGUI::addScroll(int amount) {
-  float lineHeight=(patFont->FontSize+2*dpiScale);
+  float lineHeight=(PAT_FONT_SIZE+2*dpiScale);
   nextAddScroll=lineHeight*amount;
   haveHitBounds=false;
 }
 
 void FurnaceGUI::addScrollX(int amount) {
-  float lineHeight=(patFont->FontSize+2*dpiScale);
+  float lineHeight=(PAT_FONT_SIZE+2*dpiScale);
   nextAddScrollX=lineHeight*amount;
   haveHitBounds=false;
 }
@@ -1224,7 +1229,7 @@ void FurnaceGUI::stop() {
     nextScroll=-1.0f;
     nextAddScroll=0.0f;
     e->getPlayPos(curOrder, cursor.y);
-    if (selStart.xCoarse==selEnd.xCoarse && selStart.xFine==selEnd.xFine && selStart.y==selEnd.y && !selecting) {
+    if (selStart.xCoarse==selEnd.xCoarse && selStart.xFine==selEnd.xFine && selStart.y==selEnd.y && selStart.order==selEnd.order && !selecting) {
       selStart=cursor;
       selEnd=cursor;
     }
@@ -1334,8 +1339,8 @@ void FurnaceGUI::noteInput(int num, int key, int vol) {
       pat->data[y][3]=-1;
     }
   }
-  makeUndo(GUI_UNDO_PATTERN_EDIT);
   editAdvance();
+  makeUndo(GUI_UNDO_PATTERN_EDIT);
   curNibble=false;
 }
 
@@ -1373,7 +1378,6 @@ void FurnaceGUI::valueInput(int num, bool direct, int target) {
       wavePreviewInit=true;
       updateFMPreview=true;
     }
-    makeUndo(GUI_UNDO_PATTERN_EDIT);
     if (direct) {
       curNibble=false;
     } else {
@@ -1385,13 +1389,13 @@ void FurnaceGUI::valueInput(int num, bool direct, int target) {
         if (!curNibble) editAdvance();
       }
     }
+    makeUndo(GUI_UNDO_PATTERN_EDIT);
   } else if (cursor.xFine==2) {
     if (curNibble) {
       if (pat->data[y][target]>e->getMaxVolumeChan(ch)) pat->data[y][target]=e->getMaxVolumeChan(ch);
     } else {
       pat->data[y][target]&=15;
     }
-    makeUndo(GUI_UNDO_PATTERN_EDIT);
     if (direct) {
       curNibble=false;
     } else {
@@ -1404,8 +1408,8 @@ void FurnaceGUI::valueInput(int num, bool direct, int target) {
         if (!curNibble) editAdvance();
       }
     }
-  } else {
     makeUndo(GUI_UNDO_PATTERN_EDIT);
+  } else {
     if (direct) {
       curNibble=false;
     } else {
@@ -1429,6 +1433,7 @@ void FurnaceGUI::valueInput(int num, bool direct, int target) {
         }
       }
     }
+    makeUndo(GUI_UNDO_PATTERN_EDIT);
   }
 }
 
@@ -4316,24 +4321,6 @@ bool FurnaceGUI::loop() {
       if (rend->areTexturesSquare()) {
         ImGui::GetIO().Fonts->Flags|=ImFontAtlasFlags_Square;
       }
-      if (!ImGui::GetIO().Fonts->Build()) {
-        logE("error while building font atlas!");
-        showError(_("error while loading fonts! please check your settings."));
-        ImGui::GetIO().Fonts->Clear();
-        mainFont=ImGui::GetIO().Fonts->AddFontDefault();
-        patFont=mainFont;
-        bigFont=mainFont;
-        headFont=mainFont;
-        if (rend) {
-          rend->destroyFontsTexture();
-          if (rend->areTexturesSquare()) {
-            ImGui::GetIO().Fonts->Flags|=ImFontAtlasFlags_Square;
-          }
-        }
-        if (!ImGui::GetIO().Fonts->Build()) {
-          logE("error again while building font atlas!");
-        }
-      }
 
       firstFrame=true;
       mustClear=2;
@@ -4405,10 +4392,8 @@ bool FurnaceGUI::loop() {
       if (pendingLayoutImport==NULL) pendingLayoutImportStep=0;
     }
 
-    if (!rend->newFrame()) {
-      fontsFailed=true;
-    }
-    ImGui_ImplSDL2_NewFrame(sdlWin);
+    rend->newFrame();
+    ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
 
     // one second counter
@@ -4424,7 +4409,7 @@ bool FurnaceGUI::loop() {
     e->getPlayPos(nextPlayOrder,nextOldRow);
     oldRowChanged=false;
     playOrder=nextPlayOrder;
-    if (followPattern) {
+    if (followPattern && (!e->isStepping() || pendingStepUpdate)) {
       curOrder=playOrder;
     }
     if (e->isPlaying()) {
@@ -4977,7 +4962,7 @@ bool FurnaceGUI::loop() {
       MEASURE(patManager,drawPatManager());
     } else {
       globalWinFlags=0;
-      ImGui::DockSpaceOverViewport(NULL,lockLayout?(ImGuiDockNodeFlags_NoWindowMenuButton|ImGuiDockNodeFlags_NoMove|ImGuiDockNodeFlags_NoResize|ImGuiDockNodeFlags_NoCloseButton|ImGuiDockNodeFlags_NoDocking|ImGuiDockNodeFlags_NoDockingSplitMe|ImGuiDockNodeFlags_NoDockingSplitOther):0);
+      ImGui::DockSpaceOverViewport(0,NULL,lockLayout?(ImGuiDockNodeFlags_NoWindowMenuButton|ImGuiDockNodeFlags_NoMove|ImGuiDockNodeFlags_NoResize|ImGuiDockNodeFlags_NoCloseButton|ImGuiDockNodeFlags_NoDocking|ImGuiDockNodeFlags_NoDockingSplit|ImGuiDockNodeFlags_NoDockingSplitOther):0);
 
       MEASURE(subSongs,drawSubSongs());
       MEASURE(findReplace,drawFindReplace());
@@ -5026,8 +5011,8 @@ bool FurnaceGUI::loop() {
       finishSelection();
       if (!mobileUI) {
         demandScrollX=true;
-        if (cursor.xCoarse==selStart.xCoarse && cursor.xFine==selStart.xFine && cursor.y==selStart.y &&
-            cursor.xCoarse==selEnd.xCoarse && cursor.xFine==selEnd.xFine && cursor.y==selEnd.y) {
+        if (cursor.xCoarse==selStart.xCoarse && cursor.xFine==selStart.xFine && cursor.y==selStart.y && cursor.order==selStart.order &&
+            cursor.xCoarse==selEnd.xCoarse && cursor.xFine==selEnd.xFine && cursor.y==selEnd.y && cursor.order==selEnd.order) {
           if (!settings.cursorMoveNoScroll) {
             updateScroll(cursor.y);
           }
@@ -6021,7 +6006,7 @@ bool FurnaceGUI::loop() {
         ImVec2 romLogSize=ImGui::GetContentRegionAvail();
         romLogSize.y-=ImGui::GetFrameHeightWithSpacing();
         if (romLogSize.y<60.0f*dpiScale) romLogSize.y=60.0f*dpiScale;
-        if (ImGui::BeginChild("Export Log",romLogSize,true)) {
+        if (ImGui::BeginChild("Export Log",romLogSize,ImGuiChildFlags_Border)) {
           pendingExport->logLock.lock();
           ImGui::PushFont(patFont);
           for (String& i: pendingExport->exportLog) {
@@ -6425,6 +6410,9 @@ bool FurnaceGUI::loop() {
               stop();
               e->clearSubSongs();
               curOrder=0;
+              cursor.order=0;
+              selStart.order=0;
+              selEnd.order=0;
               MARK_MODIFIED;
               ImGui::CloseCurrentPopup();
             }
@@ -6435,6 +6423,9 @@ bool FurnaceGUI::loop() {
               });
               e->setOrder(0);
               curOrder=0;
+              cursor.order=0;
+              selStart.order=0;
+              selEnd.order=0;
               MARK_MODIFIED;
               ImGui::CloseCurrentPopup();
             }
@@ -6446,6 +6437,9 @@ bool FurnaceGUI::loop() {
               });
               e->setOrder(0);
               curOrder=0;
+              cursor.order=0;
+              selStart.order=0;
+              selEnd.order=0;
               MARK_MODIFIED;
               ImGui::CloseCurrentPopup();
             }
@@ -6554,6 +6548,7 @@ bool FurnaceGUI::loop() {
               cursor.xCoarse=0;
               cursor.xFine=0;
               cursor.y=0;
+              cursor.order=0;
               selStart=cursor;
               selEnd=cursor;
               curOrder=0;
@@ -7048,6 +7043,7 @@ bool FurnaceGUI::loop() {
         ImGui::SameLine();
         ImGui::SetNextItemWidth(120.0f*dpiScale);
         if (ImGui::InputInt("##RSChans",&pendingRawSampleChannels,1,2)) {
+          if (pendingRawSampleChannels<1) pendingRawSampleChannels=1;
         }
         ImGui::Text(_("(will be mixed down to mono)"));
         ImGui::Checkbox(_("Unsigned"),&pendingRawSampleUnsigned);
@@ -7061,7 +7057,8 @@ bool FurnaceGUI::loop() {
           pendingRawSampleDepth==DIV_SAMPLE_DEPTH_QSOUND_ADPCM ||
           pendingRawSampleDepth==DIV_SAMPLE_DEPTH_ADPCM_A ||
           pendingRawSampleDepth==DIV_SAMPLE_DEPTH_ADPCM_B ||
-          pendingRawSampleDepth==DIV_SAMPLE_DEPTH_VOX) {
+          pendingRawSampleDepth==DIV_SAMPLE_DEPTH_VOX ||
+          pendingRawSampleDepth==DIV_SAMPLE_DEPTH_4BIT) {
         ImGui::Checkbox(_("Swap nibbles"),&pendingRawSampleSwapNibbles);
       }
 
@@ -7418,6 +7415,13 @@ bool FurnaceGUI::loop() {
     // to already have been made.
     checkRecordInstrumentUndoStep();
 
+    // the following code handles order lock (if it is enabled).
+    if (orderLock) {
+      cursor.order=curOrder;
+      selStart.order=curOrder;
+      selEnd.order=curOrder;
+    }
+
     if (shallDetectScale) {
       if (--shallDetectScale<1) {
         if (settings.dpiScale<0.5f) {
@@ -7433,35 +7437,6 @@ bool FurnaceGUI::loop() {
             ImGui::GetIO().Fonts->Clear();
 
             applyUISettings();
-
-            if (rend) {
-              rend->destroyFontsTexture();
-              if (rend->areTexturesSquare()) {
-                ImGui::GetIO().Fonts->Flags|=ImFontAtlasFlags_Square;
-              }
-            }
-            if (!ImGui::GetIO().Fonts->Build()) {
-              logE("error while building font atlas!");
-              showError(_("error while loading fonts! please check your settings."));
-              ImGui::GetIO().Fonts->Clear();
-              mainFont=ImGui::GetIO().Fonts->AddFontDefault();
-              patFont=mainFont;
-              bigFont=mainFont;
-              headFont=mainFont;
-              if (rend) {
-                rend->destroyFontsTexture();
-                if (rend->areTexturesSquare()) {
-                  ImGui::GetIO().Fonts->Flags|=ImFontAtlasFlags_Square;
-                }
-              }
-              if (!ImGui::GetIO().Fonts->Build()) {
-                logE("error again while building font atlas!");
-              } else {
-                rend->createFontsTexture();
-              }
-            } else {
-              rend->createFontsTexture();
-            }
           }
         }
       }
@@ -7475,17 +7450,6 @@ bool FurnaceGUI::loop() {
       patFont=mainFont;
       bigFont=mainFont;
       headFont=mainFont;
-      if (rend) {
-        rend->destroyFontsTexture();
-        if (rend->areTexturesSquare()) {
-          ImGui::GetIO().Fonts->Flags|=ImFontAtlasFlags_Square;
-        }
-      }
-      if (!ImGui::GetIO().Fonts->Build()) {
-        logE("error again while building font atlas!");
-      } else {
-        rend->createFontsTexture();
-      }
     }
 
     if (!editOptsVisible) {
@@ -7502,6 +7466,8 @@ bool FurnaceGUI::loop() {
 
 bool FurnaceGUI::init() {
   logI("initializing GUI.");
+
+  opTouched=new bool[DIV_MAX_PATTERNS*DIV_MAX_ROWS];
 
   syncState();
   syncSettings();
@@ -7896,21 +7862,6 @@ bool FurnaceGUI::init() {
   if (rend->areTexturesSquare()) {
     ImGui::GetIO().Fonts->Flags|=ImFontAtlasFlags_Square;
   }
-  if (!ImGui::GetIO().Fonts->Build()) {
-    logE("error while building font atlas!");
-    showError(_("error while loading fonts! please check your settings."));
-    ImGui::GetIO().Fonts->Clear();
-    mainFont=ImGui::GetIO().Fonts->AddFontDefault();
-    patFont=mainFont;
-    bigFont=mainFont;
-    headFont=mainFont;
-    if (rend) {
-      rend->destroyFontsTexture();
-    }
-    if (!ImGui::GetIO().Fonts->Build()) {
-      logE("error again while building font atlas!");
-    }
-  }
 
   logD("preparing layout...");
   strncpy(finalLayoutPath,(e->getConfigPath()+String(LAYOUT_INI)).c_str(),4095);
@@ -7929,7 +7880,7 @@ bool FurnaceGUI::init() {
   userEvents=SDL_RegisterEvents(1);
 
   e->setMidiCallback([this](const TAMidiMessage& msg) -> int {
-    if (introPos<11.0) return -2;
+    if (introPos<11.0) return -3;
     midiLock.lock();
     midiQueue.push(msg);
     if (userEvents!=0xffffffff && midiWakeUp) {
@@ -7942,11 +7893,11 @@ bool FurnaceGUI::init() {
     }
     midiLock.unlock();
     e->setMidiBaseChan(cursor.xCoarse);
-    if (msg.type==TA_MIDI_SYSEX) return -2;
-    if (midiMap.valueInputStyle!=0 && cursor.xFine!=0 && edit) return -2;
-    if (!midiMap.noteInput) return -2;
-    if (learning!=-1) return -2;
-    if (midiMap.at(msg)) return -2;
+    if (msg.type==TA_MIDI_SYSEX) return -3;
+    if (midiMap.valueInputStyle!=0 && cursor.xFine!=0 && edit) return -3;
+    if (!midiMap.noteInput) return -3;
+    if (learning!=-1) return -3;
+    if (midiMap.at(msg)) return -3;
 
     if (curWindowThreadSafe==GUI_WINDOW_WAVE_EDIT || curWindowThreadSafe==GUI_WINDOW_WAVE_LIST) {
       if ((msg.type&0xf0)==TA_MIDI_NOTE_ON) {
@@ -7957,7 +7908,7 @@ bool FurnaceGUI::init() {
           e->stopWavePreviewNoLock();
         }
       }
-      return -2;
+      return -3;
     }
 
     if (curWindowThreadSafe==GUI_WINDOW_SAMPLE_EDIT || curWindowThreadSafe==GUI_WINDOW_SAMPLE_LIST) {
@@ -7969,7 +7920,7 @@ bool FurnaceGUI::init() {
           e->stopSamplePreviewNoLock();
         }
       }
-      return -2;
+      return -3;
     }
 
     if (midiMap.directChannel && midiMap.directProgram) return -1;
@@ -8177,6 +8128,7 @@ void FurnaceGUI::syncState() {
 #endif
   mobileUI=e->getConfBool("mobileUI",MOBILE_UI_DEFAULT);
   edit=e->getConfBool("edit",false);
+  orderLock=e->getConfBool("orderLock",false);
   followOrders=e->getConfBool("followOrders",true);
   followPattern=e->getConfBool("followPattern",true);
   noteInputPoly=e->getConfBool("noteInputPoly",true);
@@ -8334,6 +8286,7 @@ void FurnaceGUI::commitState(DivConfig& conf) {
   conf.set("fullScreen",fullScreen);
   conf.set("mobileUI",mobileUI);
   conf.set("edit",edit);
+  conf.set("orderLock",orderLock);
   conf.set("followOrders",followOrders);
   conf.set("followPattern",followPattern);
   conf.set("orderEditMode",orderEditMode);
@@ -8453,6 +8406,9 @@ bool FurnaceGUI::finish(bool saveConfig) {
     delete chanOscWorkPool;
   }
 
+  delete[] opTouched;
+  opTouched=NULL;
+
   return true;
 }
 
@@ -8524,6 +8480,7 @@ FurnaceGUI::FurnaceGUI():
   displayExportingCS(false),
   quitNoSave(false),
   changeCoarse(false),
+  orderLock(false),
   mobileEdit(false),
   killGraphics(false),
   safeMode(false),
@@ -8601,7 +8558,6 @@ FurnaceGUI::FurnaceGUI():
   patFont(NULL),
   bigFont(NULL),
   headFont(NULL),
-  fontRange(NULL),
   songLength(0),
   songLoopedSectionLength(0),
   songFadeoutSectionLength(0),
@@ -8639,12 +8595,17 @@ FurnaceGUI::FurnaceGUI():
   isClipping(0),
   newSongCategory(0),
   latchTarget(0),
+  undoOrder(0),
   wheelX(0),
   wheelY(0),
   dragSourceX(0),
+  dragSourceXFine(0),
   dragSourceY(0),
+  dragSourceOrder(0),
   dragDestinationX(0),
+  dragDestinationXFine(0),
   dragDestinationY(0),
+  dragDestinationOrder(0),
   oldBeat(-1),
   oldBar(-1),
   curGroove(-1),
@@ -8840,6 +8801,7 @@ FurnaceGUI::FurnaceGUI():
   nextAddScroll(0.0f),
   orderScroll(0.0f),
   orderScrollSlideOrigin(0.0f),
+  patScroll(-1.0f),
   orderScrollRealOrigin(0.0f,0.0f),
   dragMobileMenuOrigin(0.0f,0.0f),
   layoutTimeBegin(0),
@@ -8875,6 +8837,10 @@ FurnaceGUI::FurnaceGUI():
   fadeMax(255),
   collapseAmount(2),
   randomizeEffectVal(0),
+  topMostOrder(-1),
+  topMostRow(-1),
+  bottomMostOrder(-1),
+  bottomMostRow(-1),
   playheadY(0.0f),
   scaleMax(100.0f),
   fadeMode(false),
@@ -8883,6 +8849,7 @@ FurnaceGUI::FurnaceGUI():
   randomizeEffect(false),
   pendingStepUpdate(0),
   oldOrdersLen(0),
+  opTouched(NULL),
   sampleZoom(1.0),
   prevSampleZoom(1.0),
   minSampleZoom(1.0),
@@ -8900,6 +8867,8 @@ FurnaceGUI::FurnaceGUI():
   sampleDragMode(false),
   sampleDrag16(false),
   sampleZoomAuto(true),
+  sampleCheckLoopStart(true),
+  sampleCheckLoopEnd(true),
   sampleSelTarget(0),
   sampleDragTarget(NULL),
   sampleDragStart(0,0),
