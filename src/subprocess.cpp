@@ -27,17 +27,25 @@
 #include <signal.h>
 
 #define TRY_MAKE_PIPE(_arrVar) \
-  int _arrVar[2]; \
-  int status=pipe(_arrVar); \
-  if (status==-1) { \
-    return -1; \
-  }
+
+/**
+ * Try to make a pipe.
+ *
+ * @return whether it succeeded.
+ */
+static bool makePipe(Subprocess::Pipe *p) {
+  int arr[2];
+  if (::pipe(arr)<0) return false;
+
+  *p=Subprocess::Pipe(arr);
+  return true;
+}
 
 void Subprocess::Pipe::close(bool careAboutError) {
   const auto closeFd=[careAboutError](int& fd) {
     if (fd==-1) return;
     if (::close(fd)==-1 && careAboutError) {
-      logE("(Subprocess::Pipe::close) failed to close fd %d: %s", fd, strerror(errno));
+      logE("Subprocess::Pipe::close: failed to close fd %d: %s", fd, strerror(errno));
       return;
     }
     fd=-1;
@@ -50,45 +58,39 @@ Subprocess::Subprocess(std::vector<String> args):
   args(args)
 {}
 
-Subprocess::~Subprocess() {
-  stdinPipe.close();
-  stdoutPipe.close();
-  stderrPipe.close();
-}
-
 int Subprocess::pipeStdin() {
   if (status!=SUBPROCESS_NOT_STARTED) return -1;
 
-  TRY_MAKE_PIPE(arr);
-  stdinPipe=Subprocess::Pipe(arr);
+  if (!makePipe(&stdinPipe)) return -1;
   return stdinPipe.writeFd;
 }
 
 int Subprocess::pipeStdout() {
   if (status!=SUBPROCESS_NOT_STARTED) return -1;
 
-  TRY_MAKE_PIPE(arr);
-  stdinPipe=Subprocess::Pipe(arr);
-  return stdinPipe.readFd;
+  if (!makePipe(&stdoutPipe)) return -1;
+  return stdoutPipe.readFd;
 }
 
 int Subprocess::pipeStderr() {
   if (status!=SUBPROCESS_NOT_STARTED) return -1;
 
-  TRY_MAKE_PIPE(arr);
-  stdinPipe=Subprocess::Pipe(arr);
-  return stdinPipe.readFd;
+  if (!makePipe(&stderrPipe)) return -1;
+  return stderrPipe.readFd;
 }
 
 bool Subprocess::start() {
-  if (status!=SUBPROCESS_NOT_STARTED) return -1;
+  if (status!=SUBPROCESS_NOT_STARTED) return false;
 
   childPid=fork();
   if (childPid==-1 || args.size()==0) {
     return false;
   }
 
-  if (childPid==0) {
+  if (childPid!=0) {
+    // parent process
+    return true;
+  } else {
     // child process
 
     // connect the desired pipes to the main file descriptors
@@ -106,32 +108,19 @@ bool Subprocess::start() {
       stderrPipe.close();
     }
 
-    // could not find a guaranteed way to cast a vector<String> to a char*[] so let's just create our own array and copy stuff to it
-    std::vector<char*> v;
+    // The reason `execvp` receives mutable strings as arguments seems to be
+    // just for backwards compatibility. I guess we can do this away with
+    // casting but I'd rather not risk that.
+    std::vector<char*> mutArgVec;
     for (int i=0; i<(int)args.size(); i++) {
       char *mem=(char*)malloc(sizeof(char)*(args[i].size()+1));
       memcpy(mem,args[i].c_str(),args[i].size()+1);
-      v.push_back(mem);
+      mutArgVec.push_back(mem);
     }
-    v.push_back(nullptr);
+    mutArgVec.push_back(nullptr);
 
-    execvp(v[0],v.data());
-    exit(127); // reachable if the execution fails - no need to log, just exit with a bad value and the parent process should be able to detect
-  } else {
-    // parent process
-
-    // attempt to close the ends not used by the parent process
-    // (to avoid stalling)
-    const auto closeEnd=[](int& fd) {
-      if (fd!=-1) return;
-      close(fd);
-      fd=-1;
-    };
-    closeEnd(stdinPipe.readFd);
-    closeEnd(stdinPipe.writeFd);
-    closeEnd(stdinPipe.writeFd);
-
-    return true;
+    execvp(mutArgVec[0],mutArgVec.data());
+    exit(127); // only reachable if the execution fails
   }
 }
 
@@ -185,19 +174,26 @@ void Subprocess::closeStderrPipe(bool careAboutError) {
 }
 
 bool Subprocess::waitStdinOrExit() {
+  constexpr int POLL_TIMEOUT_MS=250;
+
+  // The strategy here is to use `poll` to wait for the stdin pipe to unblock,
+  // but with a timeout. If that timeout satisfies, it'll check if the subprocess has exited.
+  //
+  // This should work on both Linux and MacOS..? (TODO: what to do for windows here?)
+
   struct pollfd pf;
   pf.fd=stdinPipe.writeFd;
   pf.events=POLLOUT;
 
   while (true) {
-    // I've lost my patience completely so let's just throw a poll call with a timeout here.
-    int pollResult=poll(&pf,1,250);
-    if (pollResult==-1) {
+    int pollResult=poll(&pf,1,POLL_TIMEOUT_MS);
+
+    if (pollResult<0) {
       logE("failed to use ppoll (%s)\n",strerror(errno));
       return false;
+    } else if (pollResult>0) {
+      return true;
     }
-
-    if (pollResult>0) return true;
 
     // TODO: refactor this, it's ugly! (getExitCodeNoWait() might work but it's not 100% the same thing)
     int status;
@@ -207,7 +203,7 @@ bool Subprocess::waitStdinOrExit() {
         // pipe closed!
         return false;
       } else {
-        logE("unknown waitpid result");
+        logE("Subprocess::waitStdinOrExit: unknown waitpid result");
         return false;
       }
     }

@@ -146,8 +146,7 @@ class SndfileWavWriter {
       return si.channels;
     }
 
-    bool write(float* samples, sf_count_t count, size_t exportOutputs) {
-      // FIXME: we're ignoring exportOutputs here. this is hacky!
+    bool writeFloat(float* samples, sf_count_t count) {
       return sf_writef_float(sf,samples,count)==count;
     }
 
@@ -163,6 +162,18 @@ class ProcWriter {
     int writeFd;
     int format;
     int channelCount;
+
+#ifdef TA_BIG_ENDIAN
+    uint16_t* bufShort;
+#else
+    int16_t* bufShort;
+#endif
+    float* bufFloat;
+
+    inline size_t writeBufSize() const {
+      return EXPORT_BUFSIZE*channelCount;
+    }
+
   public:
     ProcWriter(int channelCount):
       proc(NULL),
@@ -174,13 +185,20 @@ class ProcWriter {
       writeFd=writeFd_;
       format=format_;
 
+#ifdef TA_BIG_ENDIAN
+      bufShort=new uint16_t[writeBufSize()];
+#else
+      bufShort=new int16_t[writeBufSize()];
+#endif
+      bufFloat=new float[writeBufSize()];
+
       int flags=fcntl(writeFd,F_GETFL);
-      if (flags==-1) {
+      if (flags<0) {
         logE("error with fcntl (%s)",strerror(errno));
         return false;
       }
       flags|=O_NONBLOCK;
-      if (fcntl(writeFd,F_SETFL,flags)==-1) {
+      if (fcntl(writeFd,F_SETFL,flags)<0) {
         logE("error with fcntl (%s)",strerror(errno));
         return false;
       }
@@ -190,85 +208,115 @@ class ProcWriter {
 
     void close() {
       ::close(writeFd);
+      delete[] bufShort;
+      delete[] bufFloat;
     }
 
     inline int getChannelCount() {
       return channelCount;
     }
 
-    bool write(float* samples, size_t count_, size_t exportOutputs) {
-      size_t count=count_*exportOutputs;
+    /**
+     * Auxiliary function to write raw bytes to the stdin of the subprocess.
+     */
+    bool writeRaw(const uint8_t* buf, size_t size) {
+      const uint8_t* next=buf;
+      ssize_t length=size;
 
-      const auto doWrite=[this](void* buf, size_t size) {
-        while (true) {
-          if (::write(writeFd,buf,size)==(ssize_t)size) return true;
-          // buffer got full! wait for it to unblock
-          if (!proc->waitStdinOrExit()) {
-            int exitCode=-1;
-            proc->getExitCode(&exitCode, false);
-            logE("subprocess exited before finishing export (exit code %d)", exitCode);
+      while (true) {
+        ssize_t ret=::write(writeFd,next,length);
+        if (ret<0) {
+          if (errno!=EAGAIN && errno!=EWOULDBLOCK) {
+            logE("ProcWriter::writeRaw: error while writing: %s",strerror(errno));
             return false;
+          } else {
+            // if we don't set this to zero the read pointer goes back lol
+            ret=0;
           }
         }
-      };
+
+        // advance read pointer and return if done
+        length-=ret;
+        next+=ret;
+        if (length<=0) {
+          return true;
+        }
+
+        // buffer got full! wait for it to unblock
+        if (!proc->waitStdinOrExit()) {
+          int exitCode=-1;
+          proc->getExitCode(&exitCode, false);
+          logE("ProcWriter::writeRaw: subprocess exited abruptly (exit code %d)", exitCode);
+          return false;
+        }
+      }
+    }
+
+    /**
+     * Send 32-bit float samples to the subprocess.
+     *
+     * @param samples the input buffer
+     * @param size the size of the input buffer - per channel (the actual buffer size is multiplied by the channel count)
+     * @return whether it succeeded
+     */
+    bool writeFloat(const float* samples, size_t size) {
+      size_t actualSize=size*channelCount;
+      if (actualSize>writeBufSize()) {
+        logE("ProcWriter::writeFloat: buffer too large! (got %lu, should be <=%lu)", actualSize, writeBufSize());
+        return false;
+      }
 
       if (format==DIV_EXPORT_FORMAT_S16) {
 #ifdef TA_BIG_ENDIAN
-        uint16_t buf[count];
-        for (size_t i=0; i<count; i++) {
+        for (size_t i=0; i<actualSize; i++) {
           int16_t sample=32767.0f*samples[i];
           uint16_t sampleU=*(uint16_t*)&sample;
-          buf[i]=(sampleU>>8)|(sampleU<<8); // byte swap from BE to LE
+          bufShort[i]=(sampleU>>8)|(sampleU<<8); // byte swap from BE to LE
         }
-        return doWrite(buf,count*sizeof(uint16_t));
+        return writeRaw((const uint8_t*)bufShort,actualSize*sizeof(uint16_t));
 #else
-        int16_t buf[count];
-        for (size_t i=0; i<count; i++) {
-          buf[i]=32767.0f*samples[i];
+        for (size_t i=0; i<actualSize; i++) {
+          bufShort[i]=32767.0f*samples[i];
         }
-        return doWrite(buf,count*sizeof(int16_t));
+        return writeRaw((const uint8_t*)bufShort,actualSize*sizeof(int16_t));
 #endif
       } else if (format==DIV_EXPORT_FORMAT_F32) {
-        return doWrite(samples,count*sizeof(float));
+        return writeRaw((const uint8_t*)samples,actualSize*sizeof(float));
       } else {
         logE("invalid export format: %d",format);
         return false;
       }
     }
 
-    bool writeShort(short* samples, size_t count_) {
-      size_t count=count_*channelCount;
-
-      const auto doWrite=[this](void* buf, size_t size) {
-        while (true) {
-          if (::write(writeFd,buf,size)==(ssize_t)size) return true;
-          // buffer got full! wait for it to unblock
-          if (!proc->waitStdinOrExit()) {
-            int exitCode=-1;
-            proc->getExitCode(&exitCode, false);
-            logE("subprocess exited before finishing export (exit code %d)", exitCode);
-            return false;
-          }
-        }
-      };
+    /**
+     * Send 16-bit integer samples to the subprocess.
+     *
+     * @param samples the input buffer
+     * @param size the size of the input buffer - per channel (the actual buffer size is multiplied by the channel count)
+     * @return whether it succeeded
+     */
+    bool writeShort(short* samples, size_t size) {
+      size_t actualSize=size*channelCount;
+      if (actualSize>writeBufSize()) {
+        logE("ProcWriter::writeShort: buffer too large! (got %lu, should be <=%lu)", actualSize, writeBufSize());
+        return false;
+      }
 
       if (format==DIV_EXPORT_FORMAT_S16) {
 #ifdef TA_BIG_ENDIAN
-        uint16_t buf[count];
-        for (size_t i=0; i<count; i++) {
+        for (size_t i=0; i<actualSize; i++) {
           uint16_t sampleU=*(uint16_t*)&samples[i];
-          buf[i]=(sampleU>>8)|(sampleU<<8); // byte swap from BE to LE
+          bufShort[i]=(sampleU>>8)|(sampleU<<8); // byte swap from BE to LE
         }
-        return doWrite(buf,count*sizeof(uint16_t));
+        return writeRaw((const uint8_t*)bufShort,actualSize*sizeof(uint16_t));
 #else
-        return doWrite(samples,count*sizeof(int16_t));
+        return writeRaw((const uint8_t*)samples,actualSize*sizeof(int16_t));
 #endif
       } else if (format==DIV_EXPORT_FORMAT_F32) {
-        float buf[count];
-        for (size_t i=0; i<count; i++) {
-          buf[i]=(float)samples[i]/32767.0f;
+        for (size_t i=0; i<actualSize; i++) {
+          bufFloat[i]=(float)samples[i]/32767.0f;
         }
-        return doWrite(buf,count*sizeof(float));
+        return writeRaw((const uint8_t*)bufFloat,actualSize*sizeof(float));
       } else {
         logE("invalid export format: %d",format);
         return false;
@@ -398,7 +446,7 @@ void DivEngine::runExportThread() {
         }
       }
 
-      if (!wr->write(outBufFinal,total,exportOutputs)) {
+      if (!wr->writeFloat(outBufFinal,total)) {
         logE("error: failed to write entire buffer!");
         break;
       }
@@ -542,7 +590,7 @@ void DivEngine::runExportThread() {
 
         Subprocess proc(args);
         int writeFd=proc.pipeStdin();
-        if (writeFd==-1) {
+        if (writeFd<0) {
           logE("failed to create stdin pipe for subprocess");
           exporting=false;
           return;
@@ -668,55 +716,7 @@ void DivEngine::runExportThread() {
 
       logI("rendering to files...");
 
-      for (int i=0; i<chans; i++) {
-        if (!exportChannelMask[i]) continue;
-
-        SNDFILE* sf;
-        SF_INFO si;
-        SFWrapper sfWrap;
-        String fname=fmt::sprintf("%s_c%02d.wav",exportPath,i+1);
-        logI("- %s",fname.c_str());
-        si.samplerate=got.rate;
-        si.channels=exportOutputs;
-        if (exportFormat==DIV_EXPORT_FORMAT_S16) {
-          si.format=SF_FORMAT_WAV|SF_FORMAT_PCM_16;
-        } else {
-          si.format=SF_FORMAT_WAV|SF_FORMAT_FLOAT;
-        }
-
-        sf=sfWrap.doOpen(fname.c_str(),SFM_WRITE,&si);
-        if (sf==NULL) {
-          logE("could not open file for writing! (%s)",sf_strerror(NULL));
-          break;
-        }
-
-        for (int j=0; j<chans; j++) {
-          bool mute=(j!=i);
-          isMuted[j]=mute;
-        }
-        if (getChannelType(i)==5) {
-          for (int j=i; j<chans; j++) {
-            if (getChannelType(j)!=5) break;
-            isMuted[j]=false;
-          }
-        }
-        for (int j=0; j<chans; j++) {
-          if (disCont[dispatchOfChan[j]].dispatch!=NULL) {
-            disCont[dispatchOfChan[j]].dispatch->muteChannel(dispatchChanOfChan[j],isMuted[j]);
-          }
-        }
-
-        curOrder=0;
-        prevOrder=0;
-        curFadeOutSample=0;
-        lastLoopPos=-1;
-        totalLoops=0;
-        isFadingOut=false;
-        remainingLoops=-1;
-        freelance=false;
-        playSub(false);
-        freelance=false;
-
+      const auto doExportChan=[&outBuf,&outBufFinal,&curFadeOutSample,&fadeOutSamples,this](auto writer) {
         while (playing) {
           size_t total=0;
           nextBuf(NULL,outBuf,0,exportOutputs,EXPORT_BUFSIZE);
@@ -747,18 +747,95 @@ void DivEngine::runExportThread() {
               }
             }
           }
-          if (sf_writef_float(sf,outBufFinal,total)!=(int)total) {
+          if (!writer->writeFloat(outBufFinal,total)) {
             logE("error: failed to write entire buffer!");
             break;
           }
         }
 
-        curExportChan++;
+        writer->close();
+      };
 
-        if (sfWrap.doClose()!=0) {
-          logE("could not close audio file!");
+      for (int i=0; i<chans; i++) {
+        if (!exportChannelMask[i]) continue;
+
+        String fname=fmt::sprintf("%s_c%02d.%s",exportPath,i+1,exportFileExtNoDot);
+        logI("rendering to %s...",fname);
+
+        // mute all channels except the current one
+        for (int j=0; j<chans; j++) {
+          bool mute=(j!=i);
+          isMuted[j]=mute;
         }
 
+        if (getChannelType(i)==5) {
+          for (int j=i; j<chans; j++) {
+            if (getChannelType(j)!=5) break;
+            isMuted[j]=false;
+          }
+        }
+        for (int j=0; j<chans; j++) {
+          if (disCont[dispatchOfChan[j]].dispatch!=NULL) {
+            disCont[dispatchOfChan[j]].dispatch->muteChannel(dispatchChanOfChan[j],isMuted[j]);
+          }
+        }
+
+        curOrder=0;
+        prevOrder=0;
+        curFadeOutSample=0;
+        lastLoopPos=-1;
+        totalLoops=0;
+        isFadingOut=false;
+        remainingLoops=-1;
+        freelance=false;
+        playSub(false);
+        freelance=false;
+
+        if (exportWriter==DIV_EXPORT_WRITER_SNDFILE) {
+          SndfileWavWriter wr;
+          if (!wr.open(makeSfInfo(),fname.c_str())) {
+            logE("could not initialize export writer");
+            exporting=false;
+            return;
+          }
+          doExportChan(&wr);
+        } else if (exportWriter==DIV_EXPORT_WRITER_COMMAND) {
+#ifdef _WIN32
+          logE("ffmpeg export is not yet supported");
+#else
+
+          std::vector<String> args;
+          splitString(exportCommand,' ',args);
+          String inputFormatArg=(exportFormat==DIV_EXPORT_FORMAT_S16)?"s16le":"f32le";
+          args=buildFinalArgs(args,inputFormatArg,got.rate,exportOutputs,fname.c_str());
+
+          Subprocess proc(args);
+          int writeFd=proc.pipeStdin();
+          if (writeFd<0) {
+            logE("failed to create stdin pipe for subprocess");
+            exporting=false;
+            return;
+          }
+
+          if (!proc.start()) {
+            logE("failed to start ffmpeg subprocess");
+            exporting=false;
+            return;
+          }
+
+          ProcWriter wr(exportOutputs);
+          if (!wr.open(&proc,writeFd,exportFormat)) {
+            logE("could not initialize export writer");
+            exporting=false;
+            return;
+          }
+          doExportChan(&wr);
+#endif
+        }
+
+        curExportChan++;
+
+        // skip FM operator channels
         if (getChannelType(i)==5) {
           i++;
           while (true) {
