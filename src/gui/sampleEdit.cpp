@@ -60,6 +60,18 @@ const double timeMultipliers[13]={
     _x+=_text; \
   }
 
+// with sample pointer header in sample memory
+#define REFRESH_SAMPLE \
+  bool hasSamplePtr=false; \
+  for (int s=0; s<e->song.systemLen; s++) { \
+    if (e->getDispatch(s)->hasSamplePtrHeader()) { \
+      hasSamplePtr=true; \
+    } \
+  } \
+  if (hasSamplePtr) { \
+    e->renderSamplesP(curSample); \
+  }
+
 #define MAX_RATE(_name,_x) \
    if (e->isPreviewingSample()) { \
      if ((int)e->getSamplePreviewRate()>(int)(_x)) { \
@@ -285,6 +297,7 @@ void FurnaceGUI::drawSampleEdit() {
                 int tryWith=(sample->loopEnd-8)&(~127);
                 if (tryWith>(int)sample->samples) tryWith-=128;
                 tryWith+=8; // +1 bc of how sample length is treated: https://www.nesdev.org/wiki/APU_DMC
+                if (tryWith<8) tryWith=8;
                 String alignHint=fmt::sprintf(_("NES: loop end must be a multiple of 128 + 8 (try with %d)"),tryWith);
                 SAMPLE_WARN(warnLoopEnd,alignHint);
               }
@@ -563,6 +576,11 @@ void FurnaceGUI::drawSampleEdit() {
               SAMPLE_WARN(warnLength,_("ES5506: maximum sample length is 2097024"));
             }
             break;
+          case DIV_SYSTEM_MULTIPCM:
+            if (sample->samples>65535) {
+              SAMPLE_WARN(warnLength,_("MultiPCM: maximum sample length is 65535"));
+            }
+            break;
           default:
             break;
         }
@@ -638,9 +656,7 @@ void FurnaceGUI::drawSampleEdit() {
             sample->loopEnd=sample->samples;*/
           }
           updateSampleTex=true;
-          if (e->getSampleFormatMask()&(1U<<DIV_SAMPLE_DEPTH_BRR)) {
-            e->renderSamplesP(curSample);
-          }
+          REFRESH_SAMPLE
         }
         popWarningColor();
         if (ImGui::IsItemHovered() && (!warnLoop.empty() || sample->depth==DIV_SAMPLE_DEPTH_BRR)) {
@@ -877,9 +893,7 @@ void FurnaceGUI::drawSampleEdit() {
               sample->loopStart=sample->loopEnd;
             }
             updateSampleTex=true;
-            if (e->getSampleFormatMask()&(1U<<DIV_SAMPLE_DEPTH_BRR)) {
-              e->renderSamplesP(curSample);
-            }
+            REFRESH_SAMPLE
           }
           if (ImGui::IsItemActive()) {
             keepLoopAlive=true;
@@ -920,9 +934,7 @@ void FurnaceGUI::drawSampleEdit() {
               sample->loopEnd=sample->samples;
             }
             updateSampleTex=true;
-            if (e->getSampleFormatMask()&(1U<<DIV_SAMPLE_DEPTH_BRR)) {
-              e->renderSamplesP(curSample);
-            }
+            REFRESH_SAMPLE
           }
           if (ImGui::IsItemActive()) {
             keepLoopAlive=true;
