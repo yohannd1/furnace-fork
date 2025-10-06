@@ -974,6 +974,7 @@ void FurnaceGUI::doAction(int what) {
           MARK_MODIFIED;
         }
         updateSampleTex=true;
+        notifySampleChange=true;
       }
       break;
     case GUI_ACTION_WAVE_LIST_MOVE_UP:
@@ -1031,6 +1032,7 @@ void FurnaceGUI::doAction(int what) {
         MARK_MODIFIED;
       }
       updateSampleTex=true;
+      notifySampleChange=true;
       break;
     case GUI_ACTION_SAMPLE_LIST_DUPLICATE:
       if (curSample>=0 && curSample<(int)e->song.sample.size()) {
@@ -1065,6 +1067,7 @@ void FurnaceGUI::doAction(int what) {
           MARK_MODIFIED;
         }
         updateSampleTex=true;
+        notifySampleChange=true;
       }
       break;
     case GUI_ACTION_SAMPLE_LIST_OPEN:
@@ -1090,6 +1093,7 @@ void FurnaceGUI::doAction(int what) {
         curSample--;
         wantScrollListSample=true;
         updateSampleTex=true;
+        notifySampleChange=true;
         MARK_MODIFIED;
       }
       break;
@@ -1098,6 +1102,7 @@ void FurnaceGUI::doAction(int what) {
         curSample++;
         wantScrollListSample=true;
         updateSampleTex=true;
+        notifySampleChange=true;
         MARK_MODIFIED;
       }
       break;
@@ -1109,6 +1114,7 @@ void FurnaceGUI::doAction(int what) {
         curSample--;
       }
       updateSampleTex=true;
+      notifySampleChange=true;
       break;
     case GUI_ACTION_SAMPLE_LIST_EDIT:
       sampleEditOpen=true;
@@ -1117,11 +1123,13 @@ void FurnaceGUI::doAction(int what) {
       if (--curSample<0) curSample=0;
       wantScrollListSample=true;
       updateSampleTex=true;
+      notifySampleChange=true;
       break;
     case GUI_ACTION_SAMPLE_LIST_DOWN:
       if (++curSample>=(int)e->song.sample.size()) curSample=((int)e->song.sample.size())-1;
       wantScrollListSample=true;
       updateSampleTex=true;
+      notifySampleChange=true;
       break;
     case GUI_ACTION_SAMPLE_LIST_PREVIEW:
       e->previewSample(curSample);
@@ -1211,6 +1219,7 @@ void FurnaceGUI::doAction(int what) {
       e->lockEngine([this,sample,start,end]() {
         sample->strip(start,end);
         updateSampleTex=true;
+        notifySampleChange=true;
 
         e->renderSamples(curSample);
       });
@@ -1263,6 +1272,7 @@ void FurnaceGUI::doAction(int what) {
       sampleSelStart=pos;
       sampleSelEnd=pos+sampleClipboardLen;
       updateSampleTex=true;
+      notifySampleChange=true;
       MARK_MODIFIED;
       break;
     }
@@ -1294,6 +1304,7 @@ void FurnaceGUI::doAction(int what) {
       sampleSelEnd=pos+sampleClipboardLen;
       if (sampleSelEnd>(int)sample->samples) sampleSelEnd=sample->samples;
       updateSampleTex=true;
+      notifySampleChange=true;
       MARK_MODIFIED;
       break;
     }
@@ -1331,6 +1342,7 @@ void FurnaceGUI::doAction(int what) {
       sampleSelEnd=pos+sampleClipboardLen;
       if (sampleSelEnd>(int)sample->samples) sampleSelEnd=sample->samples;
       updateSampleTex=true;
+      notifySampleChange=true;
       MARK_MODIFIED;
       break;
     }
@@ -1396,6 +1408,7 @@ void FurnaceGUI::doAction(int what) {
         }
 
         updateSampleTex=true;
+        notifySampleChange=true;
 
         e->renderSamples(curSample);
       });
@@ -1427,6 +1440,7 @@ void FurnaceGUI::doAction(int what) {
         }
 
         updateSampleTex=true;
+        notifySampleChange=true;
 
         e->renderSamples(curSample);
       });
@@ -1458,6 +1472,7 @@ void FurnaceGUI::doAction(int what) {
         }
 
         updateSampleTex=true;
+        notifySampleChange=true;
 
         e->renderSamples(curSample);
       });
@@ -1487,6 +1502,7 @@ void FurnaceGUI::doAction(int what) {
         }
 
         updateSampleTex=true;
+        notifySampleChange=true;
 
         e->renderSamples(curSample);
       });
@@ -1503,6 +1519,7 @@ void FurnaceGUI::doAction(int what) {
 
         sample->strip(start,end);
         updateSampleTex=true;
+        notifySampleChange=true;
 
         e->renderSamples(curSample);
       });
@@ -1521,6 +1538,7 @@ void FurnaceGUI::doAction(int what) {
 
         sample->trim(start,end);
         updateSampleTex=true;
+        notifySampleChange=true;
 
         e->renderSamples(curSample);
       });
@@ -1556,6 +1574,7 @@ void FurnaceGUI::doAction(int what) {
         }
 
         updateSampleTex=true;
+        notifySampleChange=true;
 
         e->renderSamples(curSample);
       });
@@ -1583,6 +1602,7 @@ void FurnaceGUI::doAction(int what) {
         }
 
         updateSampleTex=true;
+        notifySampleChange=true;
 
         e->renderSamples(curSample);
       });
@@ -1608,6 +1628,7 @@ void FurnaceGUI::doAction(int what) {
         }
 
         updateSampleTex=true;
+        notifySampleChange=true;
 
         e->renderSamples(curSample);
       });
@@ -1741,6 +1762,7 @@ void FurnaceGUI::doAction(int what) {
         sample->loopEnd=end;
         sample->loop=true;
         updateSampleTex=true;
+        notifySampleChange=true;
 
         e->renderSamples(curSample);
       });
