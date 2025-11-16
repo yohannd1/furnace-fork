@@ -1582,8 +1582,11 @@ void FurnaceGUI::doRandomize(int bottom, int top, bool mode, bool eff, int effVa
             value=MIN(absoluteTop,bottom);
             value2=MIN(absoluteTop,bottom);
           } else {
-            value=MIN(absoluteTop,bottom+(rand()%(top-bottom+1)));
-            value2=MIN(absoluteTop,bottom+(rand()%(top-bottom+1)));
+            // HACK: MIN will call rand() twice....
+            int randVal=rand();
+            value=MIN(absoluteTop,bottom+(randVal%(top-bottom+1)));
+            randVal=rand();
+            value2=MIN(absoluteTop,bottom+(randVal%(top-bottom+1)));
           }
           if (mode) {
             value&=15;
@@ -1912,7 +1915,7 @@ void FurnaceGUI::doAbsorbInstrument() {
       // absorb most recent instrument
       if (!foundIns && pat->newData[i][DIV_PAT_INS] >= 0) {
         foundIns=true;
-        curIns=pat->newData[i][DIV_PAT_INS];
+        setCurIns(pat->newData[i][DIV_PAT_INS]);
       }
 
       // absorb most recent octave (i.e. set curOctave such that the "main row" (QWERTY) of
@@ -1932,7 +1935,7 @@ void FurnaceGUI::doAbsorbInstrument() {
   }
 
   // if no instrument has been set at this point, the only way to match it is to use "none"
-  if (!foundIns) curIns=-1;
+  if (!foundIns) setCurIns(-1);
 
   logD("doAbsorbInstrument -- searched %d orders", curOrder-orderIdx);
 }

@@ -130,8 +130,6 @@ const char* DivEngine::getEffectDesc(unsigned char effect, int chan, bool notNul
       return _("E9xy: Quick legato down (x: time; y: semitones)");
     case 0xea:
       return _("EAxx: Legato");
-    case 0xeb:
-      return _("EBxx: Set LEGACY sample mode bank");
     case 0xec:
       return _("ECxx: Note cut");
     case 0xed:
@@ -262,6 +260,19 @@ double DivEngine::benchmarkSeek() {
 
   printf("[RESULT] min %fs max %fs average %fs\n",tMin,tMax,tAvg);
   return tAvg;
+}
+
+double DivEngine::benchmarkWalk() {
+  std::chrono::high_resolution_clock::time_point timeStart=std::chrono::high_resolution_clock::now();
+
+  // benchmark
+  calcSongTimestamps();
+
+  std::chrono::high_resolution_clock::time_point timeEnd=std::chrono::high_resolution_clock::now();
+
+  double t=(double)(std::chrono::duration_cast<std::chrono::microseconds>(timeEnd-timeStart).count())/1000000.0;
+  printf("[RESULT] %fs\n",t);
+  return t;
 }
 
 void DivEngine::notifyInsChange(int ins) {
@@ -3665,7 +3676,7 @@ int DivEngine::getViableChannel(int chan, int off, int ins) {
   return (chan+off)%chans;
 }
 
-bool DivEngine::autoNoteOn(int ch, int ins, int note, int vol) {
+bool DivEngine::autoNoteOn(int ch, int ins, int note, int vol, int transpose) {
   bool isViable[DIV_MAX_CHANS];
   bool canPlayAnyway=false;
   bool notInViableChannel=false;
@@ -3708,7 +3719,7 @@ bool DivEngine::autoNoteOn(int ch, int ins, int note, int vol) {
     if ((!midiPoly) || (isViable[finalChan] && chan[finalChan].midiNote==-1 && (insInst->type==DIV_INS_OPL || getChannelType(finalChan)==finalChanType || notInViableChannel))) {
       chan[finalChan].midiNote=note;
       chan[finalChan].midiAge=midiAgeCounter++;
-      pendingNotes.push_back(DivNoteEvent(finalChan,ins,note,vol,true));
+      pendingNotes.push_back(DivNoteEvent(finalChan,ins,note+transpose,vol,true));
       return true;
     }
     if (++finalChan>=chans) {
@@ -3729,7 +3740,7 @@ bool DivEngine::autoNoteOn(int ch, int ins, int note, int vol) {
 
   chan[candidate].midiNote=note;
   chan[candidate].midiAge=midiAgeCounter++;
-  pendingNotes.push_back(DivNoteEvent(candidate,ins,note,vol,true));
+  pendingNotes.push_back(DivNoteEvent(candidate,ins,note+transpose,vol,true));
   return true;
 }
 
@@ -3859,6 +3870,9 @@ bool DivEngine::switchMaster(bool full) {
     for (int i=0; i<song.systemLen; i++) {
       disCont[i].setRates(got.rate);
       disCont[i].setQuality(lowQuality,dcHiPass);
+    }
+    if (curFilePlayer!=NULL) {
+      curFilePlayer->setOutputRate(got.rate);
     }
     if (!output->setRun(true)) {
       logE("error while activating audio!");
@@ -4420,6 +4434,10 @@ bool DivEngine::init() {
   renderSamples();
   reset();
   active=true;
+
+  if (curFilePlayer!=NULL) {
+    curFilePlayer->setOutputRate(got.rate);
+  }
 
   if (!haveAudio) {
     return false;

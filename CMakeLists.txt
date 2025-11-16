@@ -795,6 +795,7 @@ src/engine/fileOpsSample.cpp
 src/engine/filePlayer.cpp
 src/engine/filter.cpp
 src/engine/instrument.cpp
+src/engine/legacySample.cpp
 src/engine/macroInt.cpp
 src/engine/pattern.cpp
 src/engine/pitchTable.cpp
@@ -969,6 +970,7 @@ src/gui/about.cpp
 src/gui/channels.cpp
 src/gui/chanOsc.cpp
 src/gui/clock.cpp
+src/gui/commandPalette.cpp
 src/gui/compatFlags.cpp
 src/gui/csPlayer.cpp
 src/gui/cursor.cpp
@@ -988,8 +990,8 @@ src/gui/log.cpp
 src/gui/memory.cpp
 src/gui/mixer.cpp
 src/gui/midiMap.cpp
+src/gui/multiInsSetup.cpp
 src/gui/newSong.cpp
-src/gui/commandPalette.cpp
 src/gui/orders.cpp
 src/gui/osc.cpp
 src/gui/patManager.cpp
@@ -1003,6 +1005,7 @@ src/gui/scaling.cpp
 src/gui/settings.cpp
 src/gui/songInfo.cpp
 src/gui/songNotes.cpp
+src/gui/spectrum.cpp
 src/gui/speed.cpp
 src/gui/spoiler.cpp
 src/gui/stats.cpp
@@ -1012,6 +1015,7 @@ src/gui/sysEx.cpp
 src/gui/sysManager.cpp
 src/gui/sysMiscInfo.cpp
 src/gui/sysPicker.cpp
+src/gui/tuner.cpp
 src/gui/tutorial.cpp
 src/gui/userPresets.cpp
 src/gui/util.cpp

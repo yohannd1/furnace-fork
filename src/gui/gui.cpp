@@ -868,6 +868,39 @@ void FurnaceGUI::autoDetectSystem() {
   }
 }
 
+void FurnaceGUI::setCurIns(int newIns) {
+  curIns=newIns;
+  memset(multiIns,-1,7*sizeof(int));
+}
+
+bool FurnaceGUI::setMultiIns(int newIns) {
+  // set primary instrument if not set (or if polyphony is mono)
+  if (curIns<0 || noteInputMode==GUI_NOTE_INPUT_MONO) {
+    setCurIns(newIns);
+    return true;
+  }
+  // don't allow using the primary instrument twice
+  if (curIns==newIns) return false;
+  for (int i=0; i<7; i++) {
+    // don't allow using an instrument more than once
+    if (multiIns[i]==newIns) return false;
+    // if slot is empty, assign instrument to it
+    if (multiIns[i]==-1) {
+      multiIns[i]=newIns;
+      return true;
+    }
+  }
+  // no more slots available
+  return false;
+}
+
+bool FurnaceGUI::isMultiInsActive() {
+  for (int i=0; i<7; i++) {
+    if (multiIns[i]>=0) return true;
+  }
+  return false;
+}
+
 void FurnaceGUI::updateROMExportAvail() {
   memset(romExportAvail,0,sizeof(bool)*DIV_ROM_MAX);
   romExportExists=false;
@@ -1089,6 +1122,11 @@ Size=580,641\n\
 Collapsed=0\n\
 \n\
 [Window][Song Comments]\n\
+Pos=60,60\n\
+Size=395,171\n\
+Collapsed=0\n\
+\n\
+[Window][Tuner]\n\
 Pos=60,60\n\
 Size=395,171\n\
 Collapsed=0\n\
@@ -1333,6 +1371,11 @@ void FurnaceGUI::previewNote(int refChan, int note, bool autoNote) {
   e->setMidiBaseChan(refChan);
   e->synchronized([this,note]() {
     if (!e->autoNoteOn(-1,curIns,note)) failedNoteOn=true;
+    for (int mi=0; mi<7; mi++) {
+      if (multiIns[mi]!=-1) {
+        e->autoNoteOn(-1,multiIns[mi],note,-1,multiInsTranspose[mi]);
+      }
+    }
   });
 }
 
@@ -1362,7 +1405,7 @@ void FurnaceGUI::noteInput(int num, int key, int vol, int chanOff) {
   int tick=0;
   int speed=0;
 
-  if (chanOff>0 && noteInputChord) {
+  if (chanOff>0 && noteInputMode==GUI_NOTE_INPUT_CHORD) {
     ch=e->getViableChannel(ch,chanOff,curIns);
     if ((!e->isPlaying() || !followPattern)) {
       y-=editStep;
@@ -1429,7 +1472,7 @@ void FurnaceGUI::noteInput(int num, int key, int vol, int chanOff) {
       pat->newData[y][DIV_PAT_VOL]=-1;
     }
   }
-  if ((!e->isPlaying() || !followPattern) && (chanOff<1 || !noteInputChord)) {
+  if ((!e->isPlaying() || !followPattern) && (chanOff<1 || noteInputMode!=GUI_NOTE_INPUT_CHORD)) {
     editAdvance();
   }
   makeUndo(GUI_UNDO_PATTERN_EDIT,UndoRegion(ord,ch,y,ord,ch,y));
@@ -1469,7 +1512,7 @@ void FurnaceGUI::valueInput(int num, bool direct, int target) {
       }
     }
     if (settings.absorbInsInput) {
-      curIns=pat->newData[y][target];
+      setCurIns(pat->newData[y][target]);
       wavePreviewInit=true;
       updateFMPreview=true;
     }
@@ -1849,10 +1892,8 @@ void FurnaceGUI::keyDown(SDL_Event& ev) {
 }
 
 void FurnaceGUI::keyUp(SDL_Event& ev) {
-  // this is very, very lazy...
-  if (--chordInputOffset<0) {
-    chordInputOffset=0;
-  }
+  // this is very, very lazy... but it works.
+  chordInputOffset=0;
 }
 
 bool dirExists(String s) {
@@ -1977,7 +2018,7 @@ void FurnaceGUI::openFileDialog(FurnaceGUIFileDialogs type) {
               if (curIns!=-2) {
                 prevIns=curIns;
               }
-              curIns=-2;
+              setCurIns(-2);
             }
           }
           for (DivInstrument* i: instruments) delete i;
@@ -3857,6 +3898,8 @@ bool FurnaceGUI::loop() {
   DECLARE_METRIC(compatFlags)
   DECLARE_METRIC(piano)
   DECLARE_METRIC(notes)
+  DECLARE_METRIC(tuner)
+  DECLARE_METRIC(spectrum)
   DECLARE_METRIC(channels)
   DECLARE_METRIC(patManager)
   DECLARE_METRIC(sysManager)
@@ -3866,6 +3909,7 @@ bool FurnaceGUI::loop() {
   DECLARE_METRIC(effectList)
   DECLARE_METRIC(userPresets)
   DECLARE_METRIC(refPlayer)
+  DECLARE_METRIC(multiInsSetup)
   DECLARE_METRIC(popup)
 
 #ifdef IS_MOBILE
@@ -4053,7 +4097,7 @@ bool FurnaceGUI::loop() {
                 instrumentCount=e->addInstrumentPtr(i);
               }
               if (instrumentCount>=0 && settings.selectAssetOnLoad) {
-                curIns=instrumentCount-1;
+                setCurIns(instrumentCount-1);
               }
               nextWindow=GUI_WINDOW_INS_LIST;
               MARK_MODIFIED;
@@ -4209,7 +4253,7 @@ bool FurnaceGUI::loop() {
           doAction(action);
         } else switch (msg.type&0xf0) {
           case TA_MIDI_NOTE_OFF:
-            if (--chordInputOffset<0) chordInputOffset=0;
+            chordInputOffset=0;
             break;
           case TA_MIDI_NOTE_ON:
             if (midiMap.valueInputStyle==0 || midiMap.valueInputStyle>3 || cursor.xFine==0) {
@@ -4247,8 +4291,8 @@ bool FurnaceGUI::loop() {
             break;
           case TA_MIDI_PROGRAM:
             if (midiMap.programChange && !(midiMap.directChannel && midiMap.directProgram)) {
-              curIns=msg.data[0];
-              if (curIns>=(int)e->song.ins.size()) curIns=e->song.ins.size()-1;
+              setCurIns(msg.data[0]);
+              if (curIns>=(int)e->song.ins.size()) setCurIns(e->song.ins.size()-1);
               wavePreviewInit=true;
               updateFMPreview=true;
             }
@@ -4470,6 +4514,8 @@ bool FurnaceGUI::loop() {
         IMPORT_CLOSE(compatFlagsOpen);
         IMPORT_CLOSE(pianoOpen);
         IMPORT_CLOSE(notesOpen);
+        IMPORT_CLOSE(tunerOpen);
+        IMPORT_CLOSE(spectrumOpen);
         IMPORT_CLOSE(channelsOpen);
         IMPORT_CLOSE(regViewOpen);
         IMPORT_CLOSE(logOpen);
@@ -4488,6 +4534,7 @@ bool FurnaceGUI::loop() {
         IMPORT_CLOSE(csPlayerOpen);
         IMPORT_CLOSE(userPresetsOpen);
         IMPORT_CLOSE(refPlayerOpen);
+        IMPORT_CLOSE(multiInsSetupOpen);
       } else if (pendingLayoutImportStep==1) {
         // let the UI settle
       } else if (pendingLayoutImportStep==2) {
@@ -4839,6 +4886,8 @@ bool FurnaceGUI::loop() {
           if (ImGui::MenuItem(_("oscilloscope (per-channel)"),BIND_FOR(GUI_ACTION_WINDOW_CHAN_OSC),chanOscOpen)) chanOscOpen=!chanOscOpen;
           if (ImGui::MenuItem(_("oscilloscope (X-Y)"),BIND_FOR(GUI_ACTION_WINDOW_XY_OSC),xyOscOpen)) xyOscOpen=!xyOscOpen;
           if (ImGui::MenuItem(_("volume meter"),BIND_FOR(GUI_ACTION_WINDOW_VOL_METER),volMeterOpen)) volMeterOpen=!volMeterOpen;
+          if (ImGui::MenuItem(_("tuner"),BIND_FOR(GUI_ACTION_WINDOW_TUNER),tunerOpen)) tunerOpen=!tunerOpen;
+          if (ImGui::MenuItem(_("spectrum"),BIND_FOR(GUI_ACTION_WINDOW_SPECTRUM),spectrumOpen)) spectrumOpen=!spectrumOpen;
           ImGui::EndMenu();
         }
         if (ImGui::BeginMenu(_("tempo"))) {
@@ -4860,6 +4909,7 @@ bool FurnaceGUI::loop() {
         if (ImGui::MenuItem(_("play/edit controls"),BIND_FOR(GUI_ACTION_WINDOW_EDIT_CONTROLS),editControlsOpen)) editControlsOpen=!editControlsOpen;
         if (ImGui::MenuItem(_("piano/input pad"),BIND_FOR(GUI_ACTION_WINDOW_PIANO),pianoOpen)) pianoOpen=!pianoOpen;
         if (ImGui::MenuItem(_("reference music player"),BIND_FOR(GUI_ACTION_WINDOW_REF_PLAYER),refPlayerOpen)) refPlayerOpen=!refPlayerOpen;
+        if (ImGui::MenuItem(_("multi-ins setup"),BIND_FOR(GUI_ACTION_WINDOW_MULTI_INS_SETUP),multiInsSetupOpen)) multiInsSetupOpen=!multiInsSetupOpen;
         if (spoilerOpen) if (ImGui::MenuItem(_("spoiler"),NULL,spoilerOpen)) spoilerOpen=!spoilerOpen;
 
         ImGui::EndMenu();
@@ -4959,7 +5009,7 @@ bool FurnaceGUI::loop() {
               break;
             default: // effect
               if (cursor.xFine<DIV_MAX_COLS) {
-                if (p->newData[cursor.y][cursor.xFine]>-1) {
+                if (p->newData[cursor.y][(cursor.xFine-1)|1]>-1) {
                   info=e->getEffectDesc(p->newData[cursor.y][(cursor.xFine-1)|1],cursor.xCoarse,true);
                   hasInfo=true;
                 }
@@ -5060,8 +5110,10 @@ bool FurnaceGUI::loop() {
       MEASURE(effectList,drawEffectList());
       MEASURE(userPresets,drawUserPresets());
       MEASURE(refPlayer,drawRefPlayer());
+      MEASURE(multiInsSetup,drawMultiInsSetup());
       MEASURE(patManager,drawPatManager());
-
+      MEASURE(tuner,drawTuner());
+      MEASURE(spectrum,drawSpectrum());
     } else {
       globalWinFlags=0;
       ImGui::DockSpaceOverViewport(0,NULL,lockLayout?(ImGuiDockNodeFlags_NoWindowMenuButton|ImGuiDockNodeFlags_NoMove|ImGuiDockNodeFlags_NoResize|ImGuiDockNodeFlags_NoCloseButton|ImGuiDockNodeFlags_NoDocking|ImGuiDockNodeFlags_NoDockingSplit|ImGuiDockNodeFlags_NoDockingSplitOther):0);
@@ -5097,6 +5149,8 @@ bool FurnaceGUI::loop() {
       MEASURE(compatFlags,drawCompatFlags());
       MEASURE(piano,drawPiano());
       MEASURE(notes,drawNotes());
+      MEASURE(tuner,drawTuner());
+      MEASURE(spectrum,drawSpectrum());
       MEASURE(channels,drawChannels());
       MEASURE(patManager,drawPatManager());
       MEASURE(sysManager,drawSysManager());
@@ -5106,6 +5160,7 @@ bool FurnaceGUI::loop() {
       MEASURE(effectList,drawEffectList());
       MEASURE(userPresets,drawUserPresets());
       MEASURE(refPlayer,drawRefPlayer());
+      MEASURE(multiInsSetup,drawMultiInsSetup());
 
     }
 
@@ -5175,7 +5230,7 @@ bool FurnaceGUI::loop() {
             }
           }
         } else {
-          curIns=prevIns;
+          setCurIns(prevIns);
           wavePreviewInit=true;
           updateFMPreview=true;
         }
@@ -5681,7 +5736,7 @@ bool FurnaceGUI::loop() {
                     MARK_MODIFIED;
                   }
                   if (instrumentCount>=0 && settings.selectAssetOnLoad) {
-                    curIns=instrumentCount-1;
+                    setCurIns(instrumentCount-1);
                   }
                 }
               }
@@ -6558,7 +6613,7 @@ bool FurnaceGUI::loop() {
               e->lockEngine([this]() {
                 e->song.clearInstruments();
               });
-              curIns=-1;
+              setCurIns(-1);
               MARK_MODIFIED;
               ImGui::CloseCurrentPopup();
             }
@@ -6763,7 +6818,7 @@ bool FurnaceGUI::loop() {
         strncpy(temp,insTypes[i][0],1023);
         if (ImGui::MenuItem(temp)) {
           // create ins
-          curIns=e->addInstrument(-1,i);
+          setCurIns(e->addInstrument(-1,i));
           if (curIns==-1) {
             showError(_("too many instruments!"));
           } else {
@@ -7623,7 +7678,7 @@ bool FurnaceGUI::init() {
 
   initSystemPresets();
 
-  e->setAutoNotePoly(noteInputPoly);
+  e->setAutoNotePoly(noteInputMode!=GUI_NOTE_INPUT_MONO);
 
   SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER,"1");
 #if SDL_VERSION_ATLEAST(2,0,17)
@@ -8243,6 +8298,8 @@ void FurnaceGUI::syncState() {
   pianoOpen=e->getConfBool("pianoOpen",false);
 #endif
   notesOpen=e->getConfBool("notesOpen",false);
+  tunerOpen=e->getConfBool("tunerOpen",false);
+  spectrumOpen=e->getConfBool("spectrumOpen",false);
   channelsOpen=e->getConfBool("channelsOpen",false);
   patManagerOpen=e->getConfBool("patManagerOpen",false);
   sysManagerOpen=e->getConfBool("sysManagerOpen",false);
@@ -8257,6 +8314,7 @@ void FurnaceGUI::syncState() {
   spoilerOpen=e->getConfBool("spoilerOpen",false);
   userPresetsOpen=e->getConfBool("userPresetsOpen",false);
   refPlayerOpen=e->getConfBool("refPlayerOpen",false);
+  multiInsSetupOpen=e->getConfBool("multiInsSetupOpen",false);
 
   insListDir=e->getConfBool("insListDir",false);
   waveListDir=e->getConfBool("waveListDir",false);
@@ -8291,8 +8349,12 @@ void FurnaceGUI::syncState() {
   orderLock=e->getConfBool("orderLock",false);
   followOrders=e->getConfBool("followOrders",true);
   followPattern=e->getConfBool("followPattern",true);
-  noteInputPoly=e->getConfBool("noteInputPoly",true);
-  noteInputChord=e->getConfBool("noteInputChord",false);
+  editStep=e->getConfInt("editStep",1);
+  editStepCoarse=e->getConfInt("editStepCoarse",16);
+  noteInputMode=e->getConfInt("noteInputMode",GUI_NOTE_INPUT_POLY);
+  if (noteInputMode!=GUI_NOTE_INPUT_MONO && noteInputMode!=GUI_NOTE_INPUT_POLY && noteInputMode!=GUI_NOTE_INPUT_CHORD) {
+    noteInputMode=GUI_NOTE_INPUT_POLY;
+  }
   filePlayerSync=e->getConfBool("filePlayerSync",true);
   audioExportOptions.loops=e->getConfInt("exportLoops",0);
   if (audioExportOptions.loops<0) audioExportOptions.loops=0;
@@ -8306,6 +8368,12 @@ void FurnaceGUI::syncState() {
   oscZoomSlider=e->getConfBool("oscZoomSlider",false);
   oscWindowSize=e->getConfFloat("oscWindowSize",20.0f);
 
+  spectrum.bins=e->getConfInt("spectrumBins",2048);
+  spectrum.xZoom=e->getConfFloat("spectrumxZoom",1.0f);
+  spectrum.xOffset=e->getConfFloat("spectrumxOffset",0);
+  spectrum.yOffset=e->getConfFloat("spectrumyOffset",0);
+  spectrum.mono=e->getConfBool("spectrumMono",false);
+
   pianoOctaves=e->getConfInt("pianoOctaves",pianoOctaves);
   pianoOctavesEdit=e->getConfInt("pianoOctavesEdit",pianoOctavesEdit);
   pianoOptions=e->getConfBool("pianoOptions",pianoOptions);
@@ -8316,6 +8384,7 @@ void FurnaceGUI::syncState() {
   pianoOffsetEdit=e->getConfInt("pianoOffsetEdit",pianoOffsetEdit);
   pianoView=e->getConfInt("pianoView",pianoView);
   pianoInputPadMode=e->getConfInt("pianoInputPadMode",pianoInputPadMode);
+  pianoLabelsMode=e->getConfInt("pianoLabelsMode",pianoLabelsMode);
 
   chanOscCols=e->getConfInt("chanOscCols",3);
   chanOscAutoColsType=e->getConfInt("chanOscAutoColsType",0);
@@ -8408,6 +8477,8 @@ void FurnaceGUI::commitState(DivConfig& conf) {
   conf.set("compatFlagsOpen",compatFlagsOpen);
   conf.set("pianoOpen",pianoOpen);
   conf.set("notesOpen",notesOpen);
+  conf.set("tunerOpen",tunerOpen);
+  conf.set("spectrumOpen",spectrumOpen);
   conf.set("channelsOpen",channelsOpen);
   conf.set("patManagerOpen",patManagerOpen);
   conf.set("sysManagerOpen",sysManagerOpen);
@@ -8422,6 +8493,7 @@ void FurnaceGUI::commitState(DivConfig& conf) {
   conf.set("spoilerOpen",spoilerOpen);
   conf.set("userPresetsOpen",userPresetsOpen);
   conf.set("refPlayerOpen",refPlayerOpen);
+  conf.set("multiInsSetupOpen",multiInsSetupOpen);
 
   // commit dir state
   conf.set("insListDir",insListDir);
@@ -8451,9 +8523,10 @@ void FurnaceGUI::commitState(DivConfig& conf) {
   conf.set("orderLock",orderLock);
   conf.set("followOrders",followOrders);
   conf.set("followPattern",followPattern);
+  conf.set("editStep",editStep);
+  conf.set("editStepCoarse",editStepCoarse);
   conf.set("orderEditMode",orderEditMode);
-  conf.set("noteInputPoly",noteInputPoly);
-  conf.set("noteInputChord",noteInputChord);
+  conf.set("noteInputMode",(int)noteInputMode);
   conf.set("filePlayerSync",filePlayerSync);
   if (settings.persistFadeOut) {
     conf.set("exportLoops",audioExportOptions.loops);
@@ -8464,6 +8537,13 @@ void FurnaceGUI::commitState(DivConfig& conf) {
   conf.set("oscZoom",oscZoom);
   conf.set("oscZoomSlider",oscZoomSlider);
   conf.set("oscWindowSize",oscWindowSize);
+
+  // commit spectrum state
+  conf.set("spectrumBins",spectrum.bins);
+  conf.set("spectrumxZoom",spectrum.xZoom);
+  conf.set("spectrumxOffset",spectrum.xOffset);
+  conf.set("spectrumyOffset",spectrum.yOffset);
+  conf.set("spectrumMono",spectrum.mono);
 
   // commit piano state
   conf.set("pianoOctaves",pianoOctaves);
@@ -8476,6 +8556,7 @@ void FurnaceGUI::commitState(DivConfig& conf) {
   conf.set("pianoOffsetEdit",pianoOffsetEdit);
   conf.set("pianoView",pianoView);
   conf.set("pianoInputPadMode",pianoInputPadMode);
+  conf.set("pianoLabelsMode",pianoLabelsMode);
 
   // commit per-chan osc state
   conf.set("chanOscCols",chanOscCols);
@@ -8573,6 +8654,37 @@ bool FurnaceGUI::finish(bool saveConfig) {
   delete[] opTouched;
   opTouched=NULL;
 
+  if (tunerFFTInBuf) {
+    delete[] tunerFFTInBuf;
+    tunerFFTInBuf=NULL;
+  }
+  if (tunerFFTOutBuf) {
+    fftw_free(tunerFFTOutBuf);
+    tunerFFTOutBuf=NULL;
+  }
+  if (tunerPlan) {
+    fftw_free(tunerPlan);
+    tunerPlan=NULL;
+  }
+  for (int i=0; i<DIV_MAX_OUTPUTS; i++) {
+    if (spectrum.buffer[i]) {
+      fftw_free(spectrum.buffer[i]);
+      spectrum.buffer[i]=NULL;
+    }
+    if (spectrum.in[i]) {
+      delete[] spectrum.in[i];
+      spectrum.in[i]=NULL;
+    }
+    if (spectrum.plan[i]) {
+      fftw_free(spectrum.plan[i]);
+      spectrum.plan[i]=NULL;
+    }
+    if (spectrum.plot[i]) {
+      delete[] spectrum.plot[i];
+      spectrum.plot[i]=NULL;
+    }
+  }
+
   return true;
 }
 
@@ -8627,8 +8739,7 @@ FurnaceGUI::FurnaceGUI():
   preserveChanPos(false),
   sysDupCloneChannels(true),
   sysDupEnd(false),
-  noteInputPoly(true),
-  noteInputChord(false),
+  noteInputMode(GUI_NOTE_INPUT_POLY),
   notifyWaveChange(false),
   notifySampleChange(false),
   recalcTimestamps(true),
@@ -8777,6 +8888,7 @@ FurnaceGUI::FurnaceGUI():
   curPaletteChoice(0),
   curPaletteType(0),
   soloTimeout(0.0f),
+  mobileMultiInsToggle(false),
   purgeYear(2021),
   purgeMonth(4),
   purgeDay(4),
@@ -8807,6 +8919,8 @@ FurnaceGUI::FurnaceGUI():
   compatFlagsOpen(false),
   pianoOpen(false),
   notesOpen(false),
+  tunerOpen(false),
+  spectrumOpen(false),
   channelsOpen(false),
   regViewOpen(false),
   logOpen(false),
@@ -8826,6 +8940,7 @@ FurnaceGUI::FurnaceGUI():
   cvOpen(false),
   userPresetsOpen(false),
   refPlayerOpen(false),
+  multiInsSetupOpen(false),
   cvNotSerious(false),
   shortIntro(false),
   insListDir(false),
@@ -9031,7 +9146,6 @@ FurnaceGUI::FurnaceGUI():
   sampleSelStart(-1),
   sampleSelEnd(-1),
   sampleInfo(true),
-  sampleCompatRate(false),
   sampleDragActive(false),
   sampleDragMode(false),
   sampleDrag16(false),
@@ -9111,6 +9225,9 @@ FurnaceGUI::FurnaceGUI():
   xyOscDecayTime(10.0f),
   xyOscIntensity(2.0f),
   xyOscThickness(2.0f),
+  tunerFFTInBuf(NULL),
+  tunerFFTOutBuf(NULL),
+  tunerPlan(NULL),
   fpCueInput(""),
   fpCueInputFailed(false),
   fpCueInputFailReason(""),
@@ -9126,6 +9243,7 @@ FurnaceGUI::FurnaceGUI():
   pianoOffsetEdit(9),
   pianoView(PIANO_LAYOUT_AUTOMATIC),
   pianoInputPadMode(PIANO_INPUT_PAD_SPLIT_AUTO),
+  pianoLabelsMode(PIANO_LABELS_OCTAVE),
 #else
   pianoOctaves(7),
   pianoOctavesEdit(4),
@@ -9136,6 +9254,7 @@ FurnaceGUI::FurnaceGUI():
   pianoOffsetEdit(6),
   pianoView(PIANO_LAYOUT_STANDARD),
   pianoInputPadMode(PIANO_INPUT_PAD_DISABLE),
+  pianoLabelsMode(PIANO_LABELS_OCTAVE),
 #endif
   hasACED(false),
   waveGenBaseShape(0),
@@ -9292,6 +9411,9 @@ FurnaceGUI::FurnaceGUI():
   memset(effectsShow,1,sizeof(bool)*10);
 
   memset(romExportAvail,0,sizeof(bool)*DIV_ROM_MAX);
+
+  memset(multiIns,-1,7*sizeof(int));
+  memset(multiInsTranspose,0,7*sizeof(int));
 
   strncpy(noteOffLabel,"OFF",32);
   strncpy(noteRelLabel,"===",32);
