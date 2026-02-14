@@ -1026,20 +1026,24 @@ void FurnaceFilePicker::drawFileList(ImVec2& tableSize, bool& acknowledged) {
               doNotAcknowledge=true;
               toggleStart=selFilteredIndex;
               toggleEnd=selFilteredIndex+1;
+              focusEntryName=true;
             } else if (shiftDown && multiSelect) {
               doNotAcknowledge=true;
               if (lastSelFilteredIndex>=0) {
                 if (lastSelFilteredIndex<selFilteredIndex) {
                   toggleStart=lastSelFilteredIndex+1;
                   toggleEnd=selFilteredIndex+1;
+                  focusEntryName=true;
                 } else {
                   toggleStart=selFilteredIndex;
                   toggleEnd=lastSelFilteredIndex;
+                  focusEntryName=true;
                 }
               } else {
                 // fallback to the ctrl+click behavior
                 toggleStart=selFilteredIndex;
                 toggleEnd=selFilteredIndex+1;
+                focusEntryName=true;
               }
             } else {
               // clear selected entries before selecting the new one
@@ -1049,7 +1053,7 @@ void FurnaceFilePicker::drawFileList(ImVec2& tableSize, bool& acknowledged) {
               chosenEntries.clear();
               toggleStart=selFilteredIndex;
               toggleEnd=selFilteredIndex+1;
-
+              focusEntryName=true;
               if (!doNotAcknowledge) {
                 if (isMobile || singleClickSelect) {
                   acknowledged=true;
@@ -1283,6 +1287,11 @@ bool FurnaceFilePicker::draw(ImGuiWindowFlags winFlags) {
 
   bool began=false;
 
+  const auto inputConfirmed=[&]{
+    bool enterPressed=ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyReleased(ImGuiKey_Enter);
+    return enterPressed && (ImGui::IsItemFocused() || ImGui::IsItemDeactivatedAfterEdit());
+  };
+
   // center the window if it is unmovable and not an embed
   if ((winFlags&ImGuiWindowFlags_NoMove) && !isEmbed) {
     ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),ImGuiCond_Always,ImVec2(0.5f,0.5f));
@@ -1448,7 +1457,7 @@ bool FurnaceFilePicker::draw(ImGuiWindowFlags winFlags) {
       ImGui::SameLine();
       ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x-(ImGui::GetStyle().ItemSpacing.x+ImGui::GetStyle().FramePadding.x*2.0f+ImGui::CalcTextSize(_("OK")).x));
       ImGui::InputText("##EditablePath",&editablePath);
-      if ((ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyReleased(ImGuiKey_Enter)) && ImGui::IsItemDeactivatedAfterEdit()) {
+      if (inputConfirmed()) {
         newDir=editablePath;
       }
       ImGui::SameLine();
@@ -1553,7 +1562,7 @@ bool FurnaceFilePicker::draw(ImGuiWindowFlags winFlags) {
     if (ImGui::InputTextWithHint("##Filter",_("Search"),&filter)) {
       filterFiles();
     }
-    if ((ImGui::IsKeyDown(ImGuiKey_Enter) || ImGui::IsKeyReleased(ImGuiKey_Enter)) && ImGui::IsItemDeactivated()) {
+    if (inputConfirmed()) {
       newDir=path;
       if (!filter.empty()) {
         wantSearch=true;
@@ -1629,13 +1638,17 @@ bool FurnaceFilePicker::draw(ImGuiWindowFlags winFlags) {
     ImGui::TextUnformatted(_("Name: "));
     ImGui::SameLine();
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x*0.68f);
+    if (focusEntryName && !isMobile) {
+      ImGui::SetKeyboardFocusHere();
+    }
+    focusEntryName=false;
     if (ImGui::InputText("##EntryName",&entryName)) {
       for (FileEntry* j: chosenEntries) {
         j->isSelected=false;
       }
       chosenEntries.clear();
     }
-    if ((ImGui::IsKeyDown(ImGuiKey_Enter) || ImGui::IsKeyReleased(ImGuiKey_Enter)) && ImGui::IsItemDeactivatedAfterEdit()) {
+    if (inputConfirmed()) {
       if (!entryName.empty()) {
         acknowledged=true;
       }
@@ -1826,7 +1839,6 @@ bool FurnaceFilePicker::draw(ImGuiWindowFlags winFlags) {
     }
   }
 
-
   hasSizeConstraints=false;
 
   if (!newDir.empty() || readDrives) {
@@ -1846,11 +1858,16 @@ bool FurnaceFilePicker::draw(ImGuiWindowFlags winFlags) {
     }
     enforceScrollY=2;
   }
+
   return (curStatus!=FP_STATUS_WAITING);
 }
 
 bool FurnaceFilePicker::isOpened() {
   return isOpen;
+}
+
+bool FurnaceFilePicker::isSave() {
+  return isSave_;
 }
 
 bool FurnaceFilePicker::open(String name, String pa, String hint, int flags, const std::vector<String>& filter, FilePickerSelectCallback selectCallback) {
@@ -1860,10 +1877,13 @@ bool FurnaceFilePicker::open(String name, String pa, String hint, int flags, con
     return false;
   }
 
+  focusEntryName=true;
+  flags=flags;
   isModal=(flags&FP_FLAGS_MODAL);
   noClose=(flags&FP_FLAGS_NO_CLOSE);
   confirmOverwrite=(flags&FP_FLAGS_SAVE);
   multiSelect=(flags&FP_FLAGS_MULTI_SELECT);
+  isSave_=(flags&FP_FLAGS_SAVE);
   dirSelect=(flags&FP_FLAGS_DIR_SELECT);
   isEmbed=(flags&FP_FLAGS_EMBEDDABLE);
 
@@ -1977,6 +1997,7 @@ FurnaceFilePicker::FurnaceFilePicker():
   stopReading(false),
   isOpen(false),
   isMobile(false),
+  focusEntryName(false),
   multiSelect(false),
   confirmOverwrite(false),
   dirSelect(false),
