@@ -7718,9 +7718,6 @@ bool FurnaceGUI::loop() {
 bool FurnaceGUI::init() {
   logI("initializing GUI.");
 
-  // new pattern renderer "field" trial.
-  newPatternRenderer=(rand()&3);
-
   newFilePicker=new FurnaceFilePicker;
   newFilePicker->setConfigPrefix("fp_");
 
@@ -8832,7 +8829,7 @@ FurnaceGUI::FurnaceGUI():
   replacePendingSample(false),
   displayExportingROM(false),
   displayExportingCS(false),
-  newPatternRenderer(false),
+  newPatternRenderer(true),
   quitNoSave(false),
   changeCoarse(false),
   orderLock(false),
@@ -9221,6 +9218,7 @@ FurnaceGUI::FurnaceGUI():
   resampleStrat(5),
   amplifyVol(100.0),
   amplifyOff(0.0),
+  noiseGateThreshold(-60.0f),
   sampleSelStart(-1),
   sampleSelEnd(-1),
   sampleInfo(true),
@@ -9254,6 +9252,7 @@ FurnaceGUI::FurnaceGUI():
   openSampleSilenceOpt(false),
   openSampleFilterOpt(false),
   openSampleCrossFadeOpt(false),
+  openSampleNoiseGateOpt(false),
   selectedPortSet(0x1fff),
   selectedSubPort(-1),
   hoveredPortSet(0x1fff),
