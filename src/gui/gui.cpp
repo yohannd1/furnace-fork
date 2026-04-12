@@ -2262,6 +2262,15 @@ void FurnaceGUI::openFileDialog(FurnaceGUIFileDialogs type) {
         dpiScale
       );
       break;
+    case GUI_FILE_EXPORT_COMPILED_SAMPLE:
+      if (!dirExists(workingDirROMExport)) workingDirROMExport=getHomeDir();
+      hasOpened=fileDialog->openSave(
+        _("Export Compiled Memory"),
+        {_("binary file"), "*.bin"},
+        workingDirROMExport,
+        dpiScale
+      );
+      break;
     case GUI_FILE_LOAD_MAIN_FONT:
       if (!dirExists(workingDirFont)) workingDirFont=getHomeDir();
       hasOpened=fileDialog->openLoad(
@@ -3836,6 +3845,7 @@ int FurnaceGUI::processEvent(SDL_Event* ev) {
 #ifdef IS_MOBILE
   if (ev->type==SDL_APP_TERMINATING) {
     // TODO: save last song state here
+    quit=true;
   } else if (ev->type==SDL_APP_WILLENTERBACKGROUND) {
     commitState(e->getConfObject());
     e->saveConf();
@@ -4507,6 +4517,9 @@ bool FurnaceGUI::loop() {
           if (requestQuit()) {
             return true;
           }
+          break;
+        case SDL_APP_TERMINATING:
+          quit=true;
           break;
       }
     }
@@ -5658,6 +5671,7 @@ bool FurnaceGUI::loop() {
         case GUI_FILE_EXPORT_CMDSTREAM:
         case GUI_FILE_EXPORT_COMPILED_INS:
         case GUI_FILE_EXPORT_COMPILED_INS_ONE:
+        case GUI_FILE_EXPORT_COMPILED_SAMPLE:
           workingDirROMExport=fileDialog->getPath()+DIR_SEPARATOR_STR;
           break;
         case GUI_FILE_LOAD_MAIN_FONT:
@@ -5766,7 +5780,8 @@ bool FurnaceGUI::loop() {
           }
           if (curFileDialog==GUI_FILE_EXPORT_CMDSTREAM ||
               curFileDialog==GUI_FILE_EXPORT_COMPILED_INS ||
-              curFileDialog==GUI_FILE_EXPORT_COMPILED_INS_ONE) {
+              curFileDialog==GUI_FILE_EXPORT_COMPILED_INS_ONE ||
+              curFileDialog==GUI_FILE_EXPORT_COMPILED_SAMPLE) {
             checkExtension(".bin");
           }
           if (curFileDialog==GUI_FILE_EXPORT_COLORS) {
@@ -6292,6 +6307,31 @@ bool FurnaceGUI::loop() {
               }
               w->finish();
               delete w;
+              break;
+            }
+            case GUI_FILE_EXPORT_COMPILED_SAMPLE: {
+              romExportPath=copyOfName;
+              DivDispatch* dis=e->getDispatch(sampleCompileDispatch);
+              if (dis==NULL) {
+                showError(_("invalid chip index!"));
+                break;
+              }
+              const unsigned char* compiledMem=(const unsigned char*)dis->compileSampleMem(sampleCompileIndex,sampleCompileSize);
+              if (compiledMem!=NULL) {
+                FILE* f=ps_fopen(copyOfName.c_str(),"wb");
+                if (f!=NULL) {
+                  if (fwrite(compiledMem,1,sampleCompileSize,f)!=sampleCompileSize) {
+                    showWarning(_("did not write entire file!"),GUI_WARN_GENERIC);
+                  }
+                  fclose(f);
+                  pushRecentSys(copyOfName.c_str());
+                } else {
+                  showError(_("could not open file!"));
+                }
+                delete[] compiledMem;
+              } else {
+                showError(_("couldn't compile memory. check whether the chip's dispatch supports doing so, and that the memory index is in range."));
+              }
               break;
             }
             case GUI_FILE_EXPORT_TEXT: {
@@ -6925,10 +6965,9 @@ bool FurnaceGUI::loop() {
           for (size_t i=0; i<warnChoices.size(); i++) {
             FurnaceGUI::WarnChoice& wc=warnChoices[i];
             if (wc.destructive) pushDestColor();
-            bool passthroughKey=!settings.warnNotePassthrough || wc.key==ImGuiKey_Escape;
-            bool keyAccepted=(wc.key != -1) && ImGui::IsKeyPressed((ImGuiKey)wc.key) && passthroughKey;
-            String name=passthroughKey?(fmt::sprintf("%s",_(wc.name))):(_(wc.name));
-            if (ImGui::Button(_(name.c_str())) || keyAccepted) {
+            bool bypassShortcut=settings.warnNotePassthrough && wc.key!=ImGuiKey_Escape;
+            if (!bypassShortcut) ImGui::SetNextItemShortcut(wc.key,ImGuiInputFlags_Tooltip);
+            if (ImGui::Button(_(wc.name))) {
               ImGui::CloseCurrentPopup();
               wc.action();
             }
@@ -9434,6 +9473,9 @@ FurnaceGUI::FurnaceGUI():
   pendingExport(NULL),
   romExportExists(false),
   insCompileType(DIV_INS_SNES),
+  sampleCompileDispatch(0),
+  sampleCompileIndex(0),
+  sampleCompileSize(0),
   warnIsOpen(false) {
   // value keys
   valueKeys[SDLK_0]=0;

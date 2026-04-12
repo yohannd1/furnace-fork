@@ -1895,7 +1895,7 @@ bool FurnaceFilePicker::open(String name, String pa, String hint, int flags, con
   }
   curFilterType=0;
 
-  selectCallback=selCallback;
+  selCallback=selectCallback;
 
   if (!isSearch || windowName!=name) {
     if (isSearch) this->filter="";
