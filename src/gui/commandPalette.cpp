@@ -251,11 +251,15 @@ void FurnaceGUI::drawPalette() {
 
   if (ImGui::BeginChild("CommandPaletteList",avail,0,0)) {
       bool navigated=false;
-      if (ImGui::IsKeyPressed(ImGuiKey_UpArrow) && curPaletteChoice>0) {
+      bool ctrlPressed=ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl);
+      bool upPressed=ImGui::IsKeyPressed(ImGuiKey_UpArrow) || (ctrlPressed && ImGui::IsKeyPressed(ImGuiKey_P));
+      bool downPressed=ImGui::IsKeyPressed(ImGuiKey_DownArrow) || (ctrlPressed && ImGui::IsKeyPressed(ImGuiKey_N));
+
+      if (upPressed && curPaletteChoice>0) {
         curPaletteChoice-=1;
         navigated=true;
       }
-      if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
+      if (downPressed) {
         curPaletteChoice+=1;
         navigated=true;
       }
