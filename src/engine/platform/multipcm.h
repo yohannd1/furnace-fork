@@ -43,7 +43,7 @@ class DivYMW258MemoryInterface: public MemoryInterface {
 
 class DivPlatformMultiPCM: public DivDispatch {
   protected:
-    struct Channel: public SharedChannel<int> {
+    struct Channel: public SharedChannel {
       unsigned int freqH, freqL;
       int sample;
       bool writeCtrl, levelDirect;
@@ -51,7 +51,7 @@ class DivPlatformMultiPCM: public DivDispatch {
       int pan;
       int macroVolMul;
       Channel():
-        SharedChannel<int>(0x7f),
+        SharedChannel(0x7f),
         freqH(0),
         freqL(0),
         sample(-1),
@@ -101,7 +101,7 @@ class DivPlatformMultiPCM: public DivDispatch {
   public:
     void acquire(short** buf, size_t len);
     int dispatch(DivCommand c);
-    void* getChanState(int chan);
+    SharedChannel* getChanState(int chan);
     DivMacroInt* getChanMacroInt(int ch);
     unsigned short getPan(int chan);
     DivDispatchOscBuffer* getOscBuffer(int chan);

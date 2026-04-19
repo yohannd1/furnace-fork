@@ -35,7 +35,7 @@ void DivDispatch::postProcess(short* buf, int outIndex, size_t len, int sampleRa
 void DivDispatch::tick(bool sysTick) {
 }
 
-void* DivDispatch::getChanState(int chan) {
+SharedChannel* DivDispatch::getChanState(int chan) {
   return NULL;
 }
 
@@ -250,7 +250,7 @@ void DivDispatch::renderSamples(int sysID) {
   
 }
 
-void DivDispatch::notifyPitchTable() {
+void DivDispatch::notifyPitchTable(int sample) {
 }
 
 int DivDispatch::init(DivEngine* p, int channels, int sugRate, const DivConfig& flags) {

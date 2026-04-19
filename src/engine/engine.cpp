@@ -303,6 +303,14 @@ void DivEngine::notifySampleChange(int sample) {
   BUSY_END;
 }
 
+void DivEngine::notifyPitchTable(int sample) {
+  BUSY_BEGIN;
+  for (int i=0; i<song.systemLen; i++) {
+    disCont[i].dispatch->notifyPitchTable(sample);
+  }
+  BUSY_END;
+}
+
 int DivEngine::loadSampleROM(String path, ssize_t expectedSize, unsigned char*& ret) {
   ret=NULL;
   if (path.empty()) {
@@ -1604,7 +1612,7 @@ unsigned short DivEngine::getChanPan(int ch) {
   return disCont[song.dispatchOfChan[ch]].dispatch->getPan(song.dispatchChanOfChan[ch]);
 }
 
-void* DivEngine::getDispatchChanState(int ch) {
+SharedChannel* DivEngine::getDispatchChanState(int ch) {
   if (ch<0 || ch>=song.chans) return NULL;
   if (song.dispatchChanOfChan[ch]<0) return NULL;
   return disCont[song.dispatchOfChan[ch]].dispatch->getChanState(song.dispatchChanOfChan[ch]);

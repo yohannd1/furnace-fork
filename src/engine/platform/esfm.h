@@ -27,7 +27,7 @@
 #define ESFM_REG_POOL_SIZE 0x400
 
 class DivPlatformESFM: public DivDispatch {
-  struct Channel: public SharedChannel<int> {
+  struct Channel: public SharedChannel {
     struct {
       DivInstrumentFM fm;
       DivInstrumentESFM esfm;
@@ -99,7 +99,7 @@ class DivPlatformESFM: public DivDispatch {
     }
 
     Channel():
-      SharedChannel<int>(0),
+      SharedChannel(0),
       freqL{0, 0, 0, 0},
       freqH{0, 0, 0, 0},
       hardReset(false),
@@ -183,7 +183,7 @@ class DivPlatformESFM: public DivDispatch {
     void acquire(short** buf, size_t len);
     void acquireDirect(blip_buffer_t** bb, size_t len);
     int dispatch(DivCommand c);
-    void* getChanState(int chan);
+    SharedChannel* getChanState(int chan);
     DivMacroInt* getChanMacroInt(int ch);
     unsigned short getPan(int ch);
     DivDispatchOscBuffer* getOscBuffer(int chan);

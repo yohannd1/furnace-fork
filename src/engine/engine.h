@@ -668,6 +668,8 @@ class DivEngine {
     void notifyWaveChange(int wave);
     // notify sample change
     void notifySampleChange(int sample);
+    // notify a change which requires regenerating the pitch table
+    void notifyPitchTable(int sample=-1);
 
     // dispatch a command
     int dispatchCmd(DivCommand c);
@@ -1086,7 +1088,7 @@ class DivEngine {
     DivChannelState* getChanState(int chan);
 
     // get dispatch channel state
-    void* getDispatchChanState(int chan);
+    SharedChannel* getDispatchChanState(int chan);
 
     // get channel pairs
     void getChanPaired(int chan, std::vector<DivChannelPair>& ret);

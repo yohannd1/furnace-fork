@@ -24,7 +24,7 @@
 #include "../waveSynth.h"
 
 class DivPlatformGBADMA: public DivDispatch {
-  struct Channel: public SharedChannel<int> {
+  struct Channel: public SharedChannel {
     unsigned int audLoc;
     unsigned short audLen;
     int audDat;
@@ -37,7 +37,7 @@ class DivPlatformGBADMA: public DivDispatch {
     int envVol;
     DivWaveSynth ws;
     Channel():
-      SharedChannel<int>(2),
+      SharedChannel(2),
       audLoc(0),
       audLen(0),
       audDat(0),
@@ -71,7 +71,7 @@ class DivPlatformGBADMA: public DivDispatch {
   public:
     void acquire(short** buf, size_t len);
     int dispatch(DivCommand c);
-    void* getChanState(int chan);
+    SharedChannel* getChanState(int chan);
     DivDispatchOscBuffer* getOscBuffer(int chan);
     void reset();
     void forceIns();

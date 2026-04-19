@@ -26,7 +26,7 @@
 #include "sound/vsu.h"
 
 class DivPlatformVB: public DivDispatch {
-  struct Channel: public SharedChannel<signed char> {
+  struct Channel: public SharedChannel {
     int antiClickPeriodCount, antiClickWavePos;
     unsigned char pan, envLow, envHigh;
     bool noise, deferredWaveUpdate, intWritten;
@@ -34,7 +34,7 @@ class DivPlatformVB: public DivDispatch {
     signed short wave;
     DivWaveSynth ws;
     Channel():
-      SharedChannel<signed char>(15),
+      SharedChannel(15),
       antiClickPeriodCount(0),
       antiClickWavePos(0),
       pan(255),
@@ -77,7 +77,7 @@ class DivPlatformVB: public DivDispatch {
   public:
     void acquireDirect(blip_buffer_t** bb, size_t len);
     int dispatch(DivCommand c);
-    void* getChanState(int chan);
+    SharedChannel* getChanState(int chan);
     DivMacroInt* getChanMacroInt(int ch);
     unsigned short getPan(int chan);
     DivChannelModeHints getModeHints(int chan);

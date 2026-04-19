@@ -24,7 +24,7 @@
 #include "../waveSynth.h"
 
 class DivPlatformPCMDAC: public DivDispatch {
-  struct Channel: public SharedChannel<int> {
+  struct Channel: public SharedChannel {
     bool audDir;
     unsigned int audLoc;
     unsigned short audLen;
@@ -37,7 +37,7 @@ class DivPlatformPCMDAC: public DivDispatch {
     int envVol;
     DivWaveSynth ws;
     Channel():
-      SharedChannel<int>(255),
+      SharedChannel(255),
       audDir(false),
       audLoc(0),
       audLen(0),
@@ -73,7 +73,7 @@ class DivPlatformPCMDAC: public DivDispatch {
   public:
     void acquire(short** buf, size_t len);
     int dispatch(DivCommand c);
-    void* getChanState(int chan);
+    SharedChannel* getChanState(int chan);
     DivDispatchOscBuffer* getOscBuffer(int chan);
     void reset();
     void forceIns();
