@@ -557,6 +557,9 @@ src/fileutils.cpp
 src/timeutils.cpp
 src/utfutils.cpp
 
+src/fileutils/abstract.cpp
+src/fileutils/cfile.cpp
+
 extern/itcompress/compression.c
 
 extern/SAASound/src/SAAAmp.cpp
@@ -993,7 +996,6 @@ src/gui/memory.cpp
 src/gui/mixer.cpp
 src/gui/midiMap.cpp
 src/gui/multiInsSetup.cpp
-src/gui/newPattern.cpp
 src/gui/newSong.cpp
 src/gui/orders.cpp
 src/gui/osc.cpp

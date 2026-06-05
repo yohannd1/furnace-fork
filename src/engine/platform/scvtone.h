@@ -28,8 +28,8 @@ class DivPlatformSCV: public DivDispatch {
   struct Channel: public SharedChannel {
     unsigned int wave;
     int pos, duty, baseFreqNoise;
-    Channel():
-      SharedChannel(15),
+    Channel(bool linear=true):
+      SharedChannel(15,linear),
       wave(0),
       pos(0),
       duty(0),
@@ -45,6 +45,7 @@ class DivPlatformSCV: public DivDispatch {
     QueuedWrite(unsigned char a, unsigned char v): addr(a), val(v) {}
   };
   FixedQueue<QueuedWrite,512> writes;
+  DivPitchTable pitchTable, wavePitchTable;
 
   int curChan;
   int tempL[32];
@@ -77,6 +78,7 @@ class DivPlatformSCV: public DivDispatch {
     bool keyOffAffectsArp(int ch);
     void setFlags(const DivConfig& flags);
     void notifyInsDeletion(void* ins);
+    void notifyPitchTable(int sample=-1);
     void poke(unsigned int addr, unsigned short val);
     void poke(std::vector<DivRegWrite>& wlist);
     const char** getRegisterSheet();

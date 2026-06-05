@@ -29,19 +29,20 @@ class DivPlatformBubSysWSG: public DivDispatch {
     signed short wave;
     signed char waveROM[32] = {0}; // 4 bit PROM per channel on bubble system
     DivWaveSynth ws;
-    Channel():
-      SharedChannel(15),
+    Channel(bool linear=true):
+      SharedChannel(15,linear),
       wave(-1) {}
   };
   Channel chan[2];
   DivDispatchOscBuffer* oscBuf[2];
   bool isMuted[2];
   unsigned char writeOscBuf;
+  DivPitchTable pitchTable;
 
   int lastOut;
   k005289_core k005289;
   unsigned short regPool[4];
-  void updateWave(int ch);  
+  void updateWave(int ch);
   friend void putDispatchChip(void*,int);
   friend void putDispatchChan(void*,int,int);
   public:
@@ -63,6 +64,7 @@ class DivPlatformBubSysWSG: public DivDispatch {
     void setFlags(const DivConfig& flags);
     void notifyWaveChange(int wave);
     void notifyInsDeletion(void* ins);
+    void notifyPitchTable(int sample=-1);
     void poke(unsigned int addr, unsigned short val);
     void poke(std::vector<DivRegWrite>& wlist);
     const char** getRegisterSheet();

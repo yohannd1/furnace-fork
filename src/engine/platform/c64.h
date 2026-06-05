@@ -40,8 +40,8 @@ class DivPlatformC64: public DivDispatch {
     bool sweepChanged, filter, setPos, pcm;
     bool resetMask, resetFilter, resetDuty, gate, ring, sync, test;
     short pw_slide;
-    Channel():
-      SharedChannel(15),
+    Channel(bool linear=true):
+      SharedChannel(15,linear),
       prevFreq(65535),
       testWhen(0),
       audPos(0),
@@ -83,6 +83,8 @@ class DivPlatformC64: public DivDispatch {
       QueuedWrite(unsigned char a, unsigned char v): addr(a), val(v) {}
   };
   FixedQueue<QueuedWrite,128> writes;
+  DivPitchTable pitchTable;
+  DivPitchTableManager samplePitchTable;
 
   unsigned char filtControl, filtRes, vol;
   unsigned char writeOscBuf;
@@ -133,6 +135,7 @@ class DivPlatformC64: public DivDispatch {
     void getPaired(int ch, std::vector<DivChannelPair>& ret);
     DivChannelModeHints getModeHints(int chan);
     void notifyInsDeletion(void* ins);
+    void notifyPitchTable(int sample=-1);
     void poke(unsigned int addr, unsigned short val);
     void poke(std::vector<DivRegWrite>& wlist);
     const char** getRegisterSheet();

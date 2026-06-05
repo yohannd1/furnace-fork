@@ -36,8 +36,8 @@ class DivPlatformNDS: public DivDispatch, public nds_sound_intf {
     int panning, duty;
     bool setPos, pcm, busy;
     int macroVolMul;
-    Channel():
-      SharedChannel(127),
+    Channel(bool linear=true):
+      SharedChannel(127,linear),
       audPos(0),
       sample(-1),
       wave(-1),
@@ -64,6 +64,8 @@ class DivPlatformNDS: public DivDispatch, public nds_sound_intf {
     QueuedWrite(unsigned short a, unsigned char s, unsigned int v): addr(a), size(s), val(v) {}
   };
   FixedQueue<QueuedWrite,2048> writes;
+  DivPitchTable pitchTable;
+  DivPitchTableManager samplePitchTable;
 
   unsigned char* sampleMem;
   size_t sampleMemLen;
@@ -100,6 +102,7 @@ class DivPlatformNDS: public DivDispatch, public nds_sound_intf {
     virtual void notifyInsChange(int ins) override;
     virtual void notifyWaveChange(int wave) override;
     virtual void notifyInsDeletion(void* ins) override;
+    virtual void notifyPitchTable(int sample=-1) override;
     virtual void poke(unsigned int addr, unsigned short val) override;
     virtual void poke(std::vector<DivRegWrite>& wlist) override;
     virtual const char** getRegisterSheet() override;

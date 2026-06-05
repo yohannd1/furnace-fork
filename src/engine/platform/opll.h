@@ -35,8 +35,8 @@ class DivPlatformOPLL: public DivDispatch {
       unsigned char freqH, freqL;
       int fixedFreq;
       unsigned char pan;
-      Channel():
-        SharedChannel(0),
+      Channel(bool linear=true):
+        SharedChannel(0,linear),
         freqH(0),
         freqL(0),
         fixedFreq(0),
@@ -55,6 +55,7 @@ class DivPlatformOPLL: public DivDispatch {
     FixedQueue<QueuedWrite,512> writes;
     opll_t fm;
     OPLL* fm_emu;
+    DivPitchTable pitchTable;
     int delay, lastCustomMemory;
     unsigned char lastBusy;
     unsigned char drumState;
@@ -115,6 +116,7 @@ class DivPlatformOPLL: public DivDispatch {
     void setFlags(const DivConfig& flags);
     void notifyInsChange(int ins);
     void notifyInsDeletion(void* ins);
+    void notifyPitchTable(int sample=-1);
     int getPortaFloor(int ch);
     void poke(unsigned int addr, unsigned short val);
     void poke(std::vector<DivRegWrite>& wlist);

@@ -36,8 +36,8 @@ class DivPlatformGBADMA: public DivDispatch {
     bool useWave, setPos;
     int envVol;
     DivWaveSynth ws;
-    Channel():
-      SharedChannel(2),
+    Channel(bool linear=true):
+      SharedChannel(2,linear),
       audLoc(0),
       audLen(0),
       audDat(0),
@@ -64,6 +64,7 @@ class DivPlatformGBADMA: public DivDispatch {
   signed char wtMem[256*2];
   DivMemoryComposition romMemCompo;
   DivMemoryComposition wtMemCompo;
+  DivPitchTableManager samplePitchTable;
 
   friend void putDispatchChip(void*,int);
   friend void putDispatchChan(void*,int,int);
@@ -85,6 +86,7 @@ class DivPlatformGBADMA: public DivDispatch {
     void notifyInsChange(int ins);
     void notifyWaveChange(int wave);
     void notifyInsDeletion(void* ins);
+    void notifyPitchTable(int sample=-1);
     const void* getSampleMem(int index = 0);
     size_t getSampleMemCapacity(int index = 0);
     size_t getSampleMemUsage(int index = 0);

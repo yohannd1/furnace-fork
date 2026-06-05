@@ -50,8 +50,8 @@ class DivPlatformMultiPCM: public DivDispatch {
       int lfo, vib, am;
       int pan;
       int macroVolMul;
-      Channel():
-        SharedChannel(0x7f),
+      Channel(bool linear=true):
+        SharedChannel(0x7f,linear),
         freqH(0),
         freqL(0),
         sample(-1),
@@ -74,6 +74,7 @@ class DivPlatformMultiPCM: public DivDispatch {
       QueuedWrite(unsigned int a, unsigned char v): addr(a), val(v), addrOrVal(false) {}
     };
     FixedQueue<QueuedWrite,4096> writes;
+    DivPitchTableManager samplePitchTable;
 
     unsigned char* pcmMem;
     size_t pcmMemLen;
@@ -124,6 +125,7 @@ class DivPlatformMultiPCM: public DivDispatch {
     void notifySampleChange(int sample);
     void notifyInsAddition(int sysID);
     void notifyInsDeletion(void* ins);
+    void notifyPitchTable(int sample=-1);
     int getPortaFloor(int ch);
     void poke(unsigned int addr, unsigned short val);
     void poke(std::vector<DivRegWrite>& wlist);

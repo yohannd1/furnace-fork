@@ -34,8 +34,8 @@ class DivPlatformSNES: public DivDispatch {
     int wtLen;
     DivInstrumentSNES state;
     DivWaveSynth ws;
-    Channel():
-      SharedChannel(127),
+    Channel(bool linear=true):
+      SharedChannel(127,linear),
       audPos(0),
       sample(-1),
       wave(-1),
@@ -95,8 +95,7 @@ class DivPlatformSNES: public DivDispatch {
   size_t sampleMemLen;
   unsigned int* sampleOff;
   bool* sampleLoaded;
-  DivPitchTable* samplePitchTable;
-  size_t samplePitchTableLen;
+  DivPitchTableManager samplePitchTable;
   DivPitchTable wavePitchTable[16];
   DivMemoryComposition memCompo;
   unsigned char regPool[0x80];
