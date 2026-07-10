@@ -323,7 +323,7 @@ void DivPlatformX1_010::tick(bool sysTick) {
     }
     if (NEW_ARP_STRAT) {
       chan[i].handleArp();
-    } else if (chan[i].std.arp.had) {
+    } else if (chan[i].std.arp.had && !chan[i].rawFreq) {
       if (!chan[i].inPorta) {
         chan[i].baseFreq=chan[i].calcBaseFreq(parent->calcArp(chan[i].note,chan[i].std.arp.val));
       }
@@ -458,12 +458,16 @@ void DivPlatformX1_010::tick(bool sysTick) {
       // TODO: deprecate once we have raw frequency input set up.
       if (chan[i].fixedFreq) chan[i].freq=chan[i].fixedFreq;
       if (chan[i].pcm) {
-        if (chan[i].freq<1) chan[i].freq=1;
-        if (chan[i].freq>255) chan[i].freq=255;
+        if (!chan[i].rawFreq) {
+          if (chan[i].freq<1) chan[i].freq=1;
+          if (chan[i].freq>255) chan[i].freq=255;
+        }
         chWrite(i,2,chan[i].freq&0xff);
       } else {
-        if (chan[i].freq<0) chan[i].freq=0;
-        if (chan[i].freq>65535) chan[i].freq=65535;
+        if (!chan[i].rawFreq) {
+          if (chan[i].freq<0) chan[i].freq=0;
+          if (chan[i].freq>65535) chan[i].freq=65535;
+        }
         chWrite(i,2,chan[i].freq&0xff);
         chWrite(i,3,(chan[i].freq>>8)&0xff);
         if (chan[i].freqChanged && chan[i].autoEnvNum>0 && chan[i].autoEnvDen>0) {
@@ -894,6 +898,10 @@ void DivPlatformX1_010::notifyInsDeletion(void* ins) {
 void DivPlatformX1_010::notifyPitchTable(int sample) {
   pitchTable.init(parent->song.tuning,chipClock,CHIP_FREQBASE,0xffff,false,parent->song.compatFlags.linearPitch);
   samplePitchTable.update<Channel>(chan,16,parent->song.tuning,chipClock,8192,0xff,false,parent->song.compatFlags.linearPitch,sample);
+}
+
+unsigned int DivPlatformX1_010::getMaxFreq(int ch) {
+  return 0xffff;
 }
 
 void DivPlatformX1_010::setFlags(const DivConfig& flags) {

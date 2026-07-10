@@ -95,7 +95,7 @@ void DivPlatformSoundUnit::tick(bool sysTick) {
     }
     if (NEW_ARP_STRAT) {
       chan[i].handleArp();
-    } else if (chan[i].std.arp.had) {
+    } else if (chan[i].std.arp.had && !chan[i].rawFreq) {
       if (!chan[i].inPorta) {
         chan[i].baseFreq=chan[i].calcBaseFreq(parent->calcArp(chan[i].note,chan[i].std.arp.val));
       }
@@ -228,8 +228,10 @@ void DivPlatformSoundUnit::tick(bool sysTick) {
     if (chan[i].freqChanged || chan[i].keyOn || chan[i].keyOff) {
       //DivInstrument* ins=parent->getIns(chan[i].ins,DIV_INS_SU);
       chan[i].freq=chan[i].calcFreq();
-      if (chan[i].freq<0) chan[i].freq=0;
-      if (chan[i].freq>65535) chan[i].freq=65535;
+      if (!chan[i].rawFreq) {
+        if (chan[i].freq<0) chan[i].freq=0;
+        if (chan[i].freq>65535) chan[i].freq=65535;
+      }
       if (chan[i].switchRoles) {
         chWrite(i,0x1e,chan[i].freq&0xff);
         chWrite(i,0x1f,chan[i].freq>>8);
@@ -643,6 +645,10 @@ void DivPlatformSoundUnit::notifyPitchTable(int sample) {
   roleSwitchedPitchTable.init(parent->song.tuning,chipClock,CHIP_DIVIDER,0xffff,true,parent->song.compatFlags.linearPitch);
   samplePitchTable.update<Channel>(chan,8,parent->song.tuning,chipClock,CHIP_FREQBASE*0.25,0xffff,false,parent->song.compatFlags.linearPitch,sample);
   roleSwitchedSamplePitchTable.update<Channel>(chan,8,parent->song.tuning,chipClock,CHIP_DIVIDER*0.25,0xffff,true,parent->song.compatFlags.linearPitch,sample);
+}
+
+unsigned int DivPlatformSoundUnit::getMaxFreq(int ch) {
+  return 0xffff;
 }
 
 void DivPlatformSoundUnit::setFlags(const DivConfig& flags) {

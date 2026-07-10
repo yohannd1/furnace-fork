@@ -283,7 +283,7 @@ void DivPlatformPCMDAC::tick(bool sysTick) {
     }
     if (NEW_ARP_STRAT) {
       chan[i].handleArp();
-    } else if (chan[i].std.arp.had) {
+    } else if (chan[i].std.arp.had && !chan[i].rawFreq) {
       if (!chan[i].inPorta) {
         chan[i].baseFreq=chan[i].calcBaseFreq(parent->calcArp(chan[i].note,chan[i].std.arp.val));
       }
@@ -324,7 +324,9 @@ void DivPlatformPCMDAC::tick(bool sysTick) {
     }
     if (chan[i].freqChanged || chan[i].keyOn || chan[i].keyOff) {
       chan[i].freq=chan[i].calcFreq();
-      if (chan[i].freq>16777215) chan[i].freq=16777215;
+      if (!chan[i].rawFreq) {
+        if (chan[i].freq>16777215) chan[i].freq=16777215;
+      }
       if (chan[i].keyOn) {
         if (!chan[i].std.vol.had) {
           chan[i].envVol=64;
@@ -591,6 +593,10 @@ void DivPlatformPCMDAC::notifyPitchTable(int sample) {
   samplePitchTable.update<Channel>(chan,chans,parent->song.tuning,chipClock,CHIP_FREQBASE,0xffffff,false,parent->song.compatFlags.linearPitch,sample);
 }
 
+unsigned int DivPlatformPCMDAC::getMaxFreq(int ch) {
+  return 0xffffff;
+}
+
 void DivPlatformPCMDAC::setFlags(const DivConfig& flags) {
   // default to 44100Hz 16-bit stereo
   rate=flags.getInt("rate",44100);
@@ -630,10 +636,10 @@ int DivPlatformPCMDAC::init(DivEngine* p, int channels, int sugRate, const DivCo
 }
 
 void DivPlatformPCMDAC::quit() {
+  samplePitchTable.destroy<Channel>(chan,chans);
   delete[] chan;
   delete[] isMuted;
   delete[] oscBuf;
-  samplePitchTable.destroy<Channel>(chan,chans);
   chan=NULL;
   isMuted=NULL;
   oscBuf=NULL;
