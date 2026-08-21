@@ -56,8 +56,8 @@ class DivWorkPool;
 
 #define DIV_UNSTABLE
 
-#define DIV_VERSION "dev249"
-#define DIV_ENGINE_VERSION 249
+#define DIV_VERSION "dev250"
+#define DIV_ENGINE_VERSION 250
 // for imports
 #define DIV_VERSION_MOD 0xff01
 #define DIV_VERSION_FC 0xff02
@@ -155,6 +155,32 @@ struct DivAudioExportOptions {
     }
   }
 };
+
+#ifdef WITH_JSON
+struct DivJSONExportOptions {
+  enum ExportFormat : unsigned char {
+    EXPORT_JSON,
+    EXPORT_BSON,
+    EXPORT_CBOR
+  };
+  ExportFormat format;
+  bool jsonPretty;
+  bool exportMetadata, exportChips, exportOrders, exportPatterns, exportInstruments, exportWaves, exportSamples, exportCompatFlags;
+  bool optimizePatterns;
+  DivJSONExportOptions():
+    format(EXPORT_JSON),
+    jsonPretty(false),
+    exportMetadata(true),
+    exportChips(true),
+    exportOrders(true),
+    exportPatterns(true),
+    exportInstruments(true),
+    exportWaves(true),
+    exportSamples(true),
+    exportCompatFlags(false),
+    optimizePatterns(true) {}
+};
+#endif
 
 struct DivChannelState {
   std::vector<DivDelayedCommand> delayed;
@@ -356,7 +382,7 @@ class DivEngine {
   bool extValuePresent;
   bool repeatPattern;
   bool metronome;
-  bool exporting;
+  std::atomic<bool> exporting;
   bool stopExport;
   bool halted;
   bool forceMono;
@@ -405,6 +431,7 @@ class DivEngine {
   DivAudioExportFormats exportFormat;
   DivAudioExportWavFormats wavFormat;
   DivAudioExportBitrateModes exportBitRateMode;
+  double prevAudioRate;
   double exportFadeOut;
   bool isFadingOut;
   int exportOutputs;
@@ -605,7 +632,7 @@ class DivEngine {
     float chipPeak[DIV_MAX_CHIPS][DIV_MAX_OUTPUTS];
 
     void runExportThread();
-    void nextBuf(float** in, float** out, int inChans, int outChans, unsigned int size);
+    void nextBuf(float** in, float** out, int inChans, int outChans, unsigned int size, bool calledFromExport=false);
     DivInstrument* getIns(int index, DivInstrumentType fallbackType=DIV_INS_FM);
     DivWavetable* getWave(int index);
     DivSample* getSample(int index);
@@ -656,6 +683,10 @@ class DivEngine {
     SafeWriter* saveCommand(DivCSProgress* progress=NULL, DivCSOptions options=DivCSOptions());
     // export to text
     SafeWriter* saveText(bool separatePatterns=true);
+#ifdef WITH_JSON
+    // export to json
+    SafeWriter* saveJSON(DivJSONExportOptions* options);
+#endif
     // export to an audio file
     bool saveAudio(const char* path, DivAudioExportOptions options);
     // wait for audio export to finish
@@ -898,6 +929,9 @@ class DivEngine {
     // synchronous get order/row
     void getPlayPos(int& order, int& row);
     void getPlayPosTick(int& order, int& row, int& tick, int& speed);
+
+    // get the row speed used for live preview timing
+    int getPreviewSpeed();
 
     // get beat/bar
     int getElapsedBars();
@@ -1425,6 +1459,7 @@ class DivEngine {
       exportFormat(DIV_EXPORT_FORMAT_WAV),
       wavFormat(DIV_EXPORT_WAV_S16),
       exportBitRateMode(DIV_EXPORT_BITRATE_CONSTANT),
+      prevAudioRate(44100.0),
       exportFadeOut(0.0),
       isFadingOut(false),
       exportOutputs(2),
