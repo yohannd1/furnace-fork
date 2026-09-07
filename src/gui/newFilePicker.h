@@ -108,7 +108,7 @@ class FurnaceFilePicker {
   String entryName;
   ImGuiListClipper listClipper;
   ImVec2 minSize, maxSize;
-  bool haveFiles, haveStat, stopReading, isOpen, isSave_, isMobile, focusEntryName;
+  bool haveFiles, haveStat, stopReading, isOpen, isMobile, focusEntryName;
   bool sortInvert[FP_SORT_MAX];
   bool multiSelect;
   int lastSelFilteredIndex; // index of last selection on the filtered entry list
@@ -149,6 +149,7 @@ class FurnaceFilePicker {
   void sortFiles();
   void filterFiles();
   void clearAllFiles();
+  String getEscapedEntryName(FileEntry* entry);
   void updateEntryName();
   bool readDirectory(String path);
   String normalizePath(const String& which);
